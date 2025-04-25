@@ -290,6 +290,26 @@ select option {
     padding: 1rem;
 }
 
+.table-controls {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}
+
+.description-toggle {
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--primary-color);
+    cursor: pointer;
+}
+
+.description-toggle input {
+    width: auto;
+    min-width: auto;
+    margin: 0;
+}
+
 @media (max-width: 768px) {
     .filters {
         flex-direction: column;
@@ -325,5 +345,31 @@ select option {
     #searchInput {
         width: 100%;
         box-sizing: border-box;
+    }
+
+    .description-toggle {
+        display: flex;
+    }
+
+    .description-column {
+        display: none;
+    }
+
+    .description-column.show {
+        display: table-cell;
+    }
+    
+    /* Update existing mobile styles */
+    th, td {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    td:last-child {
+        display: none;
+    }
+
+    td:last-child.show {
+        display: table-cell;
     }
 }

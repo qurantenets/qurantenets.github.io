@@ -118,7 +118,7 @@ function renderTable() {
             <td>${item.flow_name}</td>
             <td>${item.start_verse_no} to ${item.end_verse_no}</td>
             <td>${item.surah_id}</td>
-            <td>${item.flow_description || '-'}</td>
+            <td class="${document.getElementById('showDescription').checked ? 'show' : ''}">${item.flow_description || '-'}</td>
         </tr>
     `).join('');
 
@@ -195,4 +195,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.collapsible').forEach(section => {
         section.classList.add('collapsed');
     });
+});
+
+// Add after existing DOMContentLoaded event listener
+document.getElementById('showDescription').addEventListener('change', function(e) {
+    const isChecked = e.target.checked;
+    const descriptionColumn = document.querySelector('.description-column');
+    const descriptionCells = document.querySelectorAll('td:last-child');
+    
+    if (isChecked) {
+        descriptionColumn.classList.add('show');
+        descriptionCells.forEach(cell => cell.classList.add('show'));
+    } else {
+        descriptionColumn.classList.remove('show');
+        descriptionCells.forEach(cell => cell.classList.remove('show'));
+    }
 });

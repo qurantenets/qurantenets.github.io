@@ -32,6 +32,12 @@
                     <option value="">All Flow Types</option>
                 </select>
             </div>
+            <div class="table-controls">
+                <label class="description-toggle">
+                    <input type="checkbox" id="showDescription" checked>
+                    <span>Show Description</span>
+                </label>
+            </div>
         </div>
 
         <table id="flowTable">
@@ -41,7 +47,7 @@
                     <th data-sort="flow_name">Flow Name ↕</th>
                     <th data-sort="verses">Verses ↕</th>
                     <th data-sort="surah_id">Surah ↕</th>
-                    <th>Description</th>
+                    <th class="description-column">Description</th>
                 </tr>
             </thead>
             <tbody id="flowTableBody">
