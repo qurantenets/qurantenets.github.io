@@ -209,12 +209,30 @@ h1 {
 }
 
 .badge {
-    background: var(--secondary-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary-color);
     color: white;
-    padding: 0.2rem 0.5rem;
-    border-radius: 12px;
-    font-size: 0.8rem;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    font-size: 0.75rem;
     margin-left: 0.5rem;
+    font-weight: 500;
+}
+
+select option {
+    padding: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.flow-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-right: 8px;
 }
 
 @media (max-width: 768px) {

@@ -69,7 +69,12 @@ function updateFlowNameFilter() {
     flowNames.forEach(name => {
         const option = document.createElement('option');
         option.value = name;
-        option.innerHTML = `${name} <span class="badge">${flowNameCounts[name]}</span>`;
+        // Create a div to hold the content
+        const content = document.createElement('div');
+        content.className = 'flow-option';
+        content.innerHTML = `${name} <span class="badge">${flowNameCounts[name]}</span>`;
+        // Set the option text to the name for fallback
+        option.textContent = `${name} (${flowNameCounts[name]})`;
         flowNameFilter.appendChild(option);
     });
 }
