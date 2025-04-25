@@ -79,6 +79,12 @@ function updateFlowNameFilter() {
     });
 }
 
+// Add helper function to create verse link
+function createVerseLink(surah, start, end) {
+    return `https://quran.com/${surah}/${start}-${end}`;
+}
+
+// Update renderTable function - modify the table row generation
 function renderTable() {
     const tbody = document.getElementById('flowTableBody');
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
@@ -116,7 +122,14 @@ function renderTable() {
         <tr>
             <td>${item.order}</td>
             <td>${item.flow_name}</td>
-            <td>${item.start_verse_no} to ${item.end_verse_no}</td>
+            <td>
+                <a href="${createVerseLink(item.surah_id, item.start_verse_no, item.end_verse_no)}" 
+                   target="_blank" 
+                   class="verse-link"
+                   title="Open verses in Quran.com">
+                    ${item.start_verse_no} to ${item.end_verse_no}
+                </a>
+            </td>
             <td>${item.surah_id}</td>
             <td class="${document.getElementById('showDescription').checked ? 'show' : ''}">${item.flow_description || '-'}</td>
         </tr>
