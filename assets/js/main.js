@@ -197,17 +197,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Add after existing DOMContentLoaded event listener
-document.getElementById('showDescription').addEventListener('change', function(e) {
-    const isChecked = e.target.checked;
-    const descriptionColumn = document.querySelector('.description-column');
-    const descriptionCells = document.querySelectorAll('td:last-child');
+// Initialize description toggle
+document.addEventListener('DOMContentLoaded', () => {
+    loadData();
+    document.querySelectorAll('.collapsible').forEach(section => {
+        section.classList.add('collapsed');
+    });
     
-    if (isChecked) {
-        descriptionColumn.classList.add('show');
-        descriptionCells.forEach(cell => cell.classList.add('show'));
-    } else {
-        descriptionColumn.classList.remove('show');
-        descriptionCells.forEach(cell => cell.classList.remove('show'));
-    }
+    const descriptionToggle = document.getElementById('showDescription');
+    descriptionToggle.addEventListener('change', function(e) {
+        const isChecked = e.target.checked;
+        const descriptionColumn = document.querySelector('.description-column');
+        const descriptionCells = document.querySelectorAll('td:last-child');
+        
+        if (isChecked) {
+            descriptionColumn.classList.add('show');
+            descriptionCells.forEach(cell => cell.classList.add('show'));
+        } else {
+            descriptionColumn.classList.remove('show');
+            descriptionCells.forEach(cell => cell.classList.remove('show'));
+        }
+    });
 });

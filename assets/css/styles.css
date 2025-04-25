@@ -310,6 +310,40 @@ select option {
     margin: 0;
 }
 
+.table-controls {
+    display: flex;
+    justify-content: flex-end;
+    margin: 1rem 0;
+    padding: 0.5rem;
+}
+
+.description-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--primary-color);
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.description-toggle input {
+    width: auto;
+    min-width: auto;
+    margin: 0;
+}
+
+/* Hide description column by default */
+.description-column,
+td:last-child {
+    display: none;
+}
+
+/* Show when toggled */
+.description-column.show,
+td:last-child.show {
+    display: table-cell;
+}
+
 @media (max-width: 768px) {
     .filters {
         flex-direction: column;
