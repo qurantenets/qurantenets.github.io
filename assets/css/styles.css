@@ -287,6 +287,7 @@ select option {
     margin: 0;
     border-radius: 0;
     box-shadow: none;
+    padding: 1rem;
 }
 
 @media (max-width: 768px) {
