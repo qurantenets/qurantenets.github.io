@@ -51,19 +51,25 @@ function updateFlowNameFilter() {
         filteredFlowData = flowData.filter(item => item.surah_id === parseInt(selectedSurah));
     }
     
-    // Get unique flow names for filtered data
+    // Count flow name occurrences
+    const flowNameCounts = filteredFlowData.reduce((acc, item) => {
+        acc[item.flow_name] = (acc[item.flow_name] || 0) + 1;
+        return acc;
+    }, {});
+    
+    // Get unique flow names
     const flowNames = [...new Set(filteredFlowData.map(item => item.flow_name))]
-        .filter(name => name) // Remove empty names
+        .filter(name => name)
         .sort();
     
     // Clear existing options
     flowNameFilter.innerHTML = '<option value="">All Flow Types</option>';
     
-    // Populate flow name filter
+    // Populate flow name filter with counts
     flowNames.forEach(name => {
         const option = document.createElement('option');
         option.value = name;
-        option.textContent = name;
+        option.innerHTML = `${name} <span class="badge">${flowNameCounts[name]}</span>`;
         flowNameFilter.appendChild(option);
     });
 }

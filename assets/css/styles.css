@@ -30,8 +30,14 @@ body {
     border-radius: 10px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     margin-bottom: 2rem;
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+.filter-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 1rem;
 }
 
@@ -191,9 +197,30 @@ h1 {
     margin-top: 2rem;
 }
 
+.website-description {
+    max-width: 800px;
+    margin: 0 auto 2rem auto;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    line-height: 1.6;
+    color: var(--text-color);
+}
+
+.badge {
+    background: var(--secondary-color);
+    color: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-left: 0.5rem;
+}
+
 @media (max-width: 768px) {
     .filters {
         flex-direction: column;
+        padding: 1rem;
     }
     
     input, select {
@@ -216,5 +243,14 @@ h1 {
     
     .disclaimer {
         text-align: left;
+    }
+
+    .filter-row {
+        grid-template-columns: 1fr;
+    }
+
+    #searchInput {
+        width: 100%;
+        box-sizing: border-box;
     }
 }
