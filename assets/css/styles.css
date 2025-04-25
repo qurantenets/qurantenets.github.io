@@ -346,10 +346,12 @@ td:last-child.show {
 
 .verse-link {
     color: var(--primary-color);
-    text-decoration: none;
+    text-decoration: underline;
     padding: 0.2rem 0.5rem;
     border-radius: 4px;
     transition: all 0.3s ease;
+    border: 1px solid var(--primary-color);
+    display: inline-block;
 }
 
 .verse-link:hover {
@@ -419,5 +421,11 @@ td:last-child.show {
 
     td:last-child.show {
         display: table-cell;
+    }
+
+    .verse-link {
+        padding: 0.15rem 0.4rem;
+        font-size: 0.85rem;
+        background-color: rgba(26, 76, 59, 0.1);  /* primary-color with opacity */
     }
 }
