@@ -1,0 +1,158 @@
+{
+  "flowdata": [
+    {
+      "end_verse_no": 7,
+      "flow_description": "Al fatihah",
+      "flow_name": "Allah's Glory",
+      "id": 1,
+      "order": 1,
+      "start_verse_no": 1,
+      "surah_id": 1
+    },
+    {
+      "end_verse_no": 7,
+      "flow_description": "S",
+      "flow_name": "Believer vs Disbeliever",
+      "id": 12,
+      "order": 2,
+      "start_verse_no": 2,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 10,
+      "flow_description": "S",
+      "flow_name": "Hypocrite",
+      "id": 13,
+      "order": 3,
+      "start_verse_no": 8,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 12,
+      "flow_description": "S",
+      "flow_name": "Corrupter",
+      "id": 14,
+      "order": 4,
+      "start_verse_no": 11,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 17,
+      "flow_description": "S",
+      "flow_name": "Foolish",
+      "id": 15,
+      "order": 5,
+      "start_verse_no": 13,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 20,
+      "flow_description": "S",
+      "flow_name": "Ignorant",
+      "id": 16,
+      "order": 6,
+      "start_verse_no": 18,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 22,
+      "flow_description": "S",
+      "flow_name": "Polytheism",
+      "id": 17,
+      "order": 7,
+      "start_verse_no": 21,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 25,
+      "flow_description": "S",
+      "flow_name": "Doubting",
+      "id": 18,
+      "order": 8,
+      "start_verse_no": 23,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 26,
+      "flow_description": "Mosquito Analogy",
+      "flow_name": "Believer vs Disbeliever",
+      "id": 19,
+      "order": 9,
+      "start_verse_no": 26,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 27,
+      "flow_description": "S",
+      "flow_name": "Losers",
+      "id": 20,
+      "order": 10,
+      "start_verse_no": 27,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 29,
+      "flow_description": "Allah Powers",
+      "flow_name": "Doubting",
+      "id": 21,
+      "order": 11,
+      "start_verse_no": 28,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 39,
+      "flow_description": "Explaining to Angels and Adam history",
+      "flow_name": "Adam",
+      "id": 22,
+      "order": 12,
+      "start_verse_no": 30,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 96,
+      "flow_description": "Moses and Israel History",
+      "flow_name": "Moses & Israel",
+      "id": 23,
+      "order": 13,
+      "start_verse_no": 40,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 101,
+      "flow_description": "Towrat",
+      "flow_name": "Disbelievers of Verses",
+      "id": 24,
+      "order": 14,
+      "start_verse_no": 97,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 103,
+      "flow_description": "Black magic & Disbelievers",
+      "flow_name": "Harut Marut",
+      "id": 25,
+      "order": 15,
+      "start_verse_no": 102,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 110,
+      "flow_description": "Towrat Disbelievers",
+      "flow_name": "Verses Disbeliever",
+      "id": 26,
+      "order": 16,
+      "start_verse_no": 104,
+      "surah_id": 2
+    },
+    {
+      "end_verse_no": 120,
+      "flow_description": "",
+      "flow_name": "Jews &  Christians",
+      "id": 27,
+      "order": 17,
+      "start_verse_no": 111,
+      "surah_id": 2
+    }
+  ],
+  "last_id": 27
+}

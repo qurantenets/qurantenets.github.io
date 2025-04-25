@@ -8,8 +8,33 @@
 </head>
 <body>
     <div class="container">
-        <h1>Hello World!</h1>
-        <p>Welcome to Quran Tenets</p>
+        <h1>Quran Flow Data</h1>
+        
+        <div class="filters">
+            <input type="text" id="searchInput" placeholder="Search...">
+            
+            <select id="surahFilter">
+                <option value="">Filter by Surah</option>
+            </select>
+            
+            <select id="flowNameFilter">
+                <option value="">Filter by Flow Name</option>
+            </select>
+        </div>
+
+        <table id="flowTable">
+            <thead>
+                <tr>
+                    <th data-sort="order">Order ↕</th>
+                    <th data-sort="flow_name">Flow Name ↕</th>
+                    <th data-sort="verses">Verses ↕</th>
+                    <th data-sort="surah_id">Surah ID ↕</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody id="flowTableBody">
+            </tbody>
+        </table>
     </div>
     <script src="assets/js/main.js"></script>
 </body>
