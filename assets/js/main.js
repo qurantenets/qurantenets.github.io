@@ -183,3 +183,16 @@ document.querySelectorAll('th[data-sort]').forEach(th => {
         renderTable();
     });
 });
+
+function toggleCollapsible(button) {
+    const section = button.parentElement;
+    section.classList.toggle('collapsed');
+}
+
+// Initialize collapsible sections as collapsed on load
+document.addEventListener('DOMContentLoaded', () => {
+    loadData();
+    document.querySelectorAll('.collapsible').forEach(section => {
+        section.classList.add('collapsed');
+    });
+});
