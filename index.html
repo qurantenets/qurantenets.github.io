@@ -8,17 +8,15 @@
 </head>
 <body>
     <div class="container">
-        <h1>Quran Flow Data</h1>
+        <h1>Noble Quran Flow</h1>
         
         <div class="filters">
-            <input type="text" id="searchInput" placeholder="Search...">
-            
+            <input type="text" id="searchInput" placeholder="Search any field...">
             <select id="surahFilter">
-                <option value="">Filter by Surah</option>
+                <option value="">All Surahs</option>
             </select>
-            
             <select id="flowNameFilter">
-                <option value="">Filter by Flow Name</option>
+                <option value="">All Flow Types</option>
             </select>
         </div>
 
@@ -28,13 +26,15 @@
                     <th data-sort="order">Order ↕</th>
                     <th data-sort="flow_name">Flow Name ↕</th>
                     <th data-sort="verses">Verses ↕</th>
-                    <th data-sort="surah_id">Surah ID ↕</th>
+                    <th data-sort="surah_id">Surah ↕</th>
                     <th>Description</th>
                 </tr>
             </thead>
             <tbody id="flowTableBody">
             </tbody>
         </table>
+
+        <div class="pagination" id="pagination"></div>
     </div>
     <script src="assets/js/main.js"></script>
 </body>
