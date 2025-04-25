@@ -22,9 +22,13 @@ function populateFilters() {
     const surahFilter = document.getElementById('surahFilter');
     const flowNameFilter = document.getElementById('flowNameFilter');
     
+    // Get unique surahs
     const surahs = [...new Set(flowData.map(item => item.surah_id))].sort((a, b) => a - b);
-    const flowNames = [...new Set(flowData.map(item => item.flow_name))].sort();
     
+    // Clear existing options
+    surahFilter.innerHTML = '<option value="">All Surahs</option>';
+    
+    // Populate surah filter
     surahs.forEach(surah => {
         const option = document.createElement('option');
         option.value = surah;
@@ -32,13 +36,35 @@ function populateFilters() {
         surahFilter.appendChild(option);
     });
     
+    // Update flow names based on selected surah
+    updateFlowNameFilter();
+}
+
+// Add new function to update flow names
+function updateFlowNameFilter() {
+    const flowNameFilter = document.getElementById('flowNameFilter');
+    const selectedSurah = document.getElementById('surahFilter').value;
+    
+    // Filter flow names based on selected surah
+    let filteredFlowData = flowData;
+    if (selectedSurah) {
+        filteredFlowData = flowData.filter(item => item.surah_id === parseInt(selectedSurah));
+    }
+    
+    // Get unique flow names for filtered data
+    const flowNames = [...new Set(filteredFlowData.map(item => item.flow_name))]
+        .filter(name => name) // Remove empty names
+        .sort();
+    
+    // Clear existing options
+    flowNameFilter.innerHTML = '<option value="">All Flow Types</option>';
+    
+    // Populate flow name filter
     flowNames.forEach(name => {
-        if (name) {
-            const option = document.createElement('option');
-            option.value = name;
-            option.textContent = name;
-            flowNameFilter.appendChild(option);
-        }
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        flowNameFilter.appendChild(option);
     });
 }
 
@@ -126,6 +152,7 @@ document.getElementById('searchInput').addEventListener('input', () => {
 });
 document.getElementById('surahFilter').addEventListener('change', () => {
     currentPage = 1;
+    updateFlowNameFilter(); // Add this line
     renderTable();
 });
 document.getElementById('flowNameFilter').addEventListener('change', () => {
