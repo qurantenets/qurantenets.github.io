@@ -47,7 +47,6 @@ input, select {
     border-radius: 6px;
     font-size: 0.9rem;
     flex: 1;
-    min-width: 200px;
 }
 
 #searchInput {
@@ -319,6 +318,7 @@ select option {
     gap: 0.5rem;
     color: var(--primary-color);
     cursor: pointer;
+    margin-right: 2vw;
 }
 
 .description-toggle input {
@@ -434,6 +434,18 @@ td:last-child.show {
 .keyboard-instructions li {
     color: #6c757d;
     font-size: 0.9rem;
+}
+
+/* Add styles for verses count column */
+
+.verses-count-column,
+td.verses-count {
+    display: none;
+}
+
+.verses-count-column.show,
+td.verses-count.show {
+    display: table-cell;
 }
 
 @media (max-width: 768px) {

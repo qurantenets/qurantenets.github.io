@@ -40,12 +40,16 @@
         <div class="table-controls">
             <label class="description-toggle">
                 <input type="checkbox" id="showDescription">
-                <span>Show Description Column</span>
+                <span>Show Description</span>
+            </label>
+            <label class="description-toggle">
+                <input type="checkbox" id="showVersesCount">
+                <span>Show Verses Count</span>
             </label>
         </div>
 
         <div class="keyboard-instructions">
-            <h3>⌨️ Keyboard Navigation:</h3>
+            <h3>⌨️ Keyboard Navigation: (for PCs)</h3>
             <ul>
                 <li>↑/↓ : Navigate between verses</li>
                 <li>←/→ : Change pages</li>
@@ -57,10 +61,11 @@
         <table id="flowTable">
             <thead>
                 <tr>
-                    <th data-sort="order">Order ↕</th>
-                    <th data-sort="flow_name">Topic Name ↕</th>
+                    <th data-sort="order"># ↕</th>
+                    <th data-sort="flow_name">Topic ↕</th>
                     <th data-sort="verses">Verses ↕</th>
                     <th data-sort="surah_id">Surah ↕</th>
+                    <th data-sort="verses_count" class="verses-count-column">Verses Count ↕</th>
                     <th class="description-column">Description</th>
                 </tr>
             </thead>

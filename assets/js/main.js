@@ -151,8 +151,18 @@ function renderTable() {
     });
     
     filteredData.sort((a, b) => {
-        let aVal = sortColumn === 'verses' ? a.start_verse_no : a[sortColumn];
-        let bVal = sortColumn === 'verses' ? b.start_verse_no : b[sortColumn];
+        let aVal, bVal;
+        
+        if (sortColumn === 'verses_count') {
+            aVal = a.end_verse_no - a.start_verse_no + 1;
+            bVal = b.end_verse_no - b.start_verse_no + 1;
+        } else if (sortColumn === 'verses') {
+            aVal = a.start_verse_no;
+            bVal = b.start_verse_no;
+        } else {
+            aVal = a[sortColumn];
+            bVal = b[sortColumn];
+        }
         
         if (typeof aVal === 'string') aVal = aVal.toLowerCase();
         if (typeof bVal === 'string') bVal = bVal.toLowerCase();
@@ -182,7 +192,12 @@ function renderTable() {
                 </a>
             </td>
             <td>${item.surah_id}</td>
-            <td class="${document.getElementById('showDescription').checked ? 'show' : ''}">${item.flow_description || '-'}</td>
+            <td class="verses-count ${document.getElementById('showVersesCount').checked ? 'show' : ''}">
+                ${item.end_verse_no - item.start_verse_no + 1}
+            </td>
+            <td class="${document.getElementById('showDescription').checked ? 'show' : ''}">
+                ${item.flow_description || '-'}
+            </td>
         </tr>
     `).join('');
 
@@ -321,6 +336,25 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             descriptionColumn.classList.remove('show');
             descriptionCells.forEach(cell => cell.classList.remove('show'));
+        }
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    // ...existing code...
+    
+    const versesCountToggle = document.getElementById('showVersesCount');
+    versesCountToggle.addEventListener('change', function(e) {
+        const isChecked = e.target.checked;
+        const versesCountColumn = document.querySelector('.verses-count-column');
+        const versesCountCells = document.querySelectorAll('td.verses-count');
+        
+        if (isChecked) {
+            versesCountColumn.classList.add('show');
+            versesCountCells.forEach(cell => cell.classList.add('show'));
+        } else {
+            versesCountColumn.classList.remove('show');
+            versesCountCells.forEach(cell => cell.classList.remove('show'));
         }
     });
 });
