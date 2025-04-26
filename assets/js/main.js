@@ -52,32 +52,39 @@ function updateFlowNameFilter() {
         filteredFlowData = flowData.filter(item => item.surah_id === parseInt(selectedSurah));
     }
     
-    // Count flow name occurrences
-    const flowNameCounts = filteredFlowData.reduce((acc, item) => {
-        acc[item.flow_name] = (acc[item.flow_name] || 0) + 1;
+    // Get unique flow names and their statistics
+    const flowStats = filteredFlowData.reduce((acc, item) => {
+        const name = item.flow_name;
+        if (!acc[name]) {
+            acc[name] = {
+                occurrences: 0,
+                totalVerses: 0
+            };
+        }
+        acc[name].occurrences++;
+        // Calculate total verses for this occurrence
+        const verseCount = item.end_verse_no - item.start_verse_no + 1;
+        acc[name].totalVerses += verseCount;
         return acc;
     }, {});
     
-    // Get unique flow names
-    const flowNames = [...new Set(filteredFlowData.map(item => item.flow_name))]
-        .filter(name => name)
-        .sort();
-    
     // Clear existing options
-    flowNameFilter.innerHTML = '<option value="">All Topics</option>';
+    flowNameFilter.innerHTML = '<option value="">All Topics (times) (verses)</option>';
     
-    // Populate flow name filter with counts
-    flowNames.forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        // Create a div to hold the content
-        const content = document.createElement('div');
-        content.className = 'flow-option';
-        content.innerHTML = `${name} <span class="badge">${flowNameCounts[name]}</span>`;
-        // Set the option text to the name for fallback
-        option.textContent = `${name} (${flowNameCounts[name]})`;
-        flowNameFilter.appendChild(option);
-    });
+    // Add new options with statistics
+    Object.entries(flowStats)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .forEach(([name, stats]) => {
+            if (name) {
+                const option = document.createElement('option');
+                option.value = name;
+                option.innerHTML = `
+                    <div class="flow-option">
+                        <span>${name} (${stats.occurrences}) (${stats.totalVerses} verses)</span>
+                    </div>`;
+                flowNameFilter.appendChild(option);
+            }
+        });
 }
 
 // Update the createVerseLink function

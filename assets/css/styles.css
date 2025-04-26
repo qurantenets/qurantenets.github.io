@@ -428,6 +428,7 @@ td:last-child.show {
     display: flex;
     gap: 20px;
     flex-wrap: wrap;
+    justify-self: center;
 }
 
 .keyboard-instructions li {
