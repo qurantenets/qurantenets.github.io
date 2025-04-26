@@ -84,17 +84,54 @@ function createVerseLink(surah, start, end) {
     return `https://quran.com/${surah}/${start}-${end}`;
 }
 
+// Add this function to parse verse ranges and check if a number falls within them
+function isNumberInVerseRange(verseStr, searchNumber) {
+    // Convert search input to number
+    const num = parseInt(searchNumber);
+    if (isNaN(num)) return false;
+
+    // Split multiple verse ranges (e.g., "2-5, 7-9")
+    const ranges = verseStr.split(',').map(r => r.trim());
+    
+    for (const range of ranges) {
+        // Handle single verse (e.g., "5")
+        if (!range.includes('-')) {
+            if (parseInt(range) === num) return true;
+            continue;
+        }
+        
+        // Handle verse range (e.g., "2-5")
+        const [start, end] = range.split('-').map(n => parseInt(n.trim()));
+        if (num >= start && num <= end) return true;
+    }
+    
+    return false;
+}
+
 // Update renderTable function - modify the table row generation
 function renderTable() {
     const tbody = document.getElementById('flowTableBody');
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const searchTerm = document.getElementById('searchInput').value;
     const selectedSurah = document.getElementById('surahFilter').value;
     const selectedFlowName = document.getElementById('flowNameFilter').value;
     
     let filteredData = flowData.filter(item => {
-        const matchesSearch = Object.values(item).some(val => 
-            String(val).toLowerCase().includes(searchTerm)
-        );
+        // Check if search term is a number
+        const searchNumber = parseInt(searchTerm);
+        if (!isNaN(searchNumber)) {
+            // Check if the number falls within the verse range
+            const verses = `${item.start_verse_no}-${item.end_verse_no}`;
+            return isNumberInVerseRange(verses, searchNumber);
+        }
+        
+        // Regular text search
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch = 
+            item.flow_name.toLowerCase().includes(searchLower) ||
+            `${item.start_verse_no}-${item.end_verse_no}`.includes(searchLower) ||
+            item.flow_description?.toLowerCase().includes(searchLower) ||
+            String(item.surah_id).includes(searchLower);
+            
         const matchesSurah = selectedSurah ? item.surah_id === parseInt(selectedSurah) : true;
         const matchesFlowName = selectedFlowName ? item.flow_name === selectedFlowName : true;
         
@@ -166,6 +203,43 @@ function renderPagination(totalPages) {
 function changePage(page) {
     currentPage = page;
     renderTable();
+}
+
+// Modify the existing filterTable function
+function filterTable() {
+    const searchText = searchInput.value.toLowerCase();
+    const selectedSurah = surahFilter.value;
+    const selectedFlowName = flowNameFilter.value;
+    
+    flowData.forEach((row, index) => {
+        const tr = flowTableBody.children[index];
+        if (!tr) return;
+
+        let show = true;
+        
+        // Check if search input is a number for verse range filtering
+        const searchNumber = parseInt(searchText);
+        if (!isNaN(searchNumber)) {
+            // If it's a number, only check verse ranges
+            show = isNumberInVerseRange(row.verses, searchNumber);
+        } else {
+            // Existing text search logic
+            show = row.flow_name.toLowerCase().includes(searchText) ||
+                  row.verses.toLowerCase().includes(searchText) ||
+                  row.surah_name.toLowerCase().includes(searchText) ||
+                  row.description.toLowerCase().includes(searchText);
+        }
+
+        // Apply additional filters
+        if (show && selectedSurah && row.surah_id !== parseInt(selectedSurah)) {
+            show = false;
+        }
+        if (show && selectedFlowName && row.flow_name !== selectedFlowName) {
+            show = false;
+        }
+
+        tr.style.display = show ? '' : 'none';
+    });
 }
 
 // Event Listeners
