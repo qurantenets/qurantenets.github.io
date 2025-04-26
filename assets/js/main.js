@@ -63,7 +63,7 @@ function updateFlowNameFilter() {
         .sort();
     
     // Clear existing options
-    flowNameFilter.innerHTML = '<option value="">All Flow Types</option>';
+    flowNameFilter.innerHTML = '<option value="">All Topics</option>';
     
     // Populate flow name filter with counts
     flowNames.forEach(name => {
