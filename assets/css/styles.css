@@ -377,6 +377,36 @@ td:last-child.show {
     text-decoration: none;
 }
 
+.search-container {
+    position: relative;
+    width: 100%;
+}
+
+.search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.search-suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.search-suggestion-item:hover {
+    background-color: #f5f5f5;
+}
+
 @media (max-width: 768px) {
     .filters {
         flex-direction: column;

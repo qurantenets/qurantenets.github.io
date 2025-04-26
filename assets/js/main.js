@@ -253,6 +253,7 @@ function filterTable() {
 document.addEventListener('DOMContentLoaded', loadData);
 document.getElementById('searchInput').addEventListener('input', () => {
     currentPage = 1;
+    updateSearchSuggestions();
     renderTable();
 });
 document.getElementById('surahFilter').addEventListener('change', () => {
@@ -316,27 +317,68 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function updateSearchSuggestions() {
-    const datalist = document.getElementById('topicSuggestions');
+    const searchInput = document.getElementById('searchInput');
+    const suggestionsDiv = document.getElementById('searchSuggestions');
     const selectedSurah = document.getElementById('surahFilter').value;
-    
+    const searchTerm = searchInput.value.toLowerCase().trim();
+
+    // Hide suggestions if it's a number
+    if (!isNaN(searchTerm)) {
+        suggestionsDiv.style.display = 'none';
+        return;
+    }
+
     // Filter flow names based on selected surah
     let filteredFlowData = flowData;
     if (selectedSurah) {
         filteredFlowData = flowData.filter(item => item.surah_id === parseInt(selectedSurah));
     }
-    
-    // Get unique flow names
-    const flowNames = [...new Set(filteredFlowData.map(item => item.flow_name))]
-        .filter(name => name)
+
+    // Get matching flow names
+    const matchingFlowNames = [...new Set(filteredFlowData
+        .map(item => item.flow_name)
+        .filter(name => name && name.toLowerCase().includes(searchTerm)))]
         .sort();
-    
-    // Clear existing options
-    datalist.innerHTML = '';
-    
-    // Add new options
-    flowNames.forEach(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        datalist.appendChild(option);
-    });
+
+    // Clear existing suggestions
+    suggestionsDiv.innerHTML = '';
+
+    // Add new suggestions
+    if (matchingFlowNames.length > 0) {
+        matchingFlowNames.forEach(name => {
+            const div = document.createElement('div');
+            div.className = 'search-suggestion-item';
+            div.textContent = name;
+            div.addEventListener('click', () => {
+                searchInput.value = name;
+                suggestionsDiv.style.display = 'none';
+                renderTable();
+            });
+            suggestionsDiv.appendChild(div);
+        });
+        suggestionsDiv.style.display = 'block';
+    } else {
+        suggestionsDiv.style.display = 'none';
+    }
 }
+
+// Update event listeners
+document.getElementById('searchInput').addEventListener('input', () => {
+    currentPage = 1;
+    updateSearchSuggestions();
+    renderTable();
+});
+
+// Hide suggestions when clicking outside
+document.addEventListener('click', (e) => {
+    const suggestionsDiv = document.getElementById('searchSuggestions');
+    const searchInput = document.getElementById('searchInput');
+    if (!searchInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+        suggestionsDiv.style.display = 'none';
+    }
+});
+
+// Show suggestions when focusing on input
+document.getElementById('searchInput').addEventListener('focus', () => {
+    updateSearchSuggestions();
+});
