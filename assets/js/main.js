@@ -79,8 +79,12 @@ function updateFlowNameFilter() {
     });
 }
 
-// Add helper function to create verse link
+// Update the createVerseLink function
 function createVerseLink(surah, start, end) {
+    // If start and end verses are the same, use single verse format
+    if (start === end) {
+        return `https://quran.com/${surah}/${start}`;
+    }
     return `https://quran.com/${surah}/${start}-${end}`;
 }
 
@@ -164,7 +168,9 @@ function renderTable() {
                    target="_blank" 
                    class="verse-link"
                    title="Open verses in Quran.com">
-                    ${item.start_verse_no} to ${item.end_verse_no}
+                    ${item.start_verse_no === item.end_verse_no 
+                        ? item.start_verse_no 
+                        : `${item.start_verse_no} to ${item.end_verse_no}`}
                 </a>
             </td>
             <td>${item.surah_id}</td>
