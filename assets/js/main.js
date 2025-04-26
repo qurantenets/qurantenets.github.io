@@ -11,6 +11,7 @@ async function loadData() {
         const data = await response.json();
         flowData = data.flowdata;
         populateFilters();
+        updateSearchSuggestions(); // Add this line
         renderTable();
     } catch (error) {
         console.error('Error loading data:', error);
@@ -256,7 +257,8 @@ document.getElementById('searchInput').addEventListener('input', () => {
 });
 document.getElementById('surahFilter').addEventListener('change', () => {
     currentPage = 1;
-    updateFlowNameFilter(); // Add this line
+    updateFlowNameFilter();
+    updateSearchSuggestions(); // Add this line
     renderTable();
 });
 document.getElementById('flowNameFilter').addEventListener('change', () => {
@@ -312,3 +314,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+function updateSearchSuggestions() {
+    const datalist = document.getElementById('topicSuggestions');
+    const selectedSurah = document.getElementById('surahFilter').value;
+    
+    // Filter flow names based on selected surah
+    let filteredFlowData = flowData;
+    if (selectedSurah) {
+        filteredFlowData = flowData.filter(item => item.surah_id === parseInt(selectedSurah));
+    }
+    
+    // Get unique flow names
+    const flowNames = [...new Set(filteredFlowData.map(item => item.flow_name))]
+        .filter(name => name)
+        .sort();
+    
+    // Clear existing options
+    datalist.innerHTML = '';
+    
+    // Add new options
+    flowNames.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        datalist.appendChild(option);
+    });
+}

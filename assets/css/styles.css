@@ -54,6 +54,23 @@ input, select {
     flex: 2;
 }
 
+input[list="topicSuggestions"] {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+/* Style for the suggestion dropdown (where supported) */
+datalist {
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
 table {
     width: 100%;
     border-collapse: separate;
