@@ -207,9 +207,11 @@ function renderPagination(totalPages) {
     pagination.innerHTML = buttons;
 }
 
+// Reset focus when page changes
 function changePage(page) {
     currentPage = page;
     renderTable();
+    currentFocusedLink = -1;
 }
 
 // Modify the existing filterTable function
@@ -381,4 +383,123 @@ document.addEventListener('click', (e) => {
 // Show suggestions when focusing on input
 document.getElementById('searchInput').addEventListener('focus', () => {
     updateSearchSuggestions();
+});
+
+// Add keyboard navigation
+let currentFocusedLink = -1;
+// Update KEY_CODES to include ESC
+const KEY_CODES = {
+    LEFT: 37,
+    UP: 38,
+    RIGHT: 39,
+    DOWN: 40,
+    SPACE: 32,
+    ESC: 27
+};
+
+function initKeyboardNavigation() {
+    document.addEventListener('keydown', (e) => {
+        const links = Array.from(document.querySelectorAll('.verse-link'));
+        if (!links.length) return;
+
+        const totalPages = Math.ceil(flowData.length / itemsPerPage);
+
+        switch (e.keyCode) {
+            case KEY_CODES.LEFT:
+                // Only handle left navigation if there are multiple pages
+                if (totalPages > 1 && currentPage > 1) {
+                    e.preventDefault();
+                    changePage(currentPage - 1);
+                }
+                break;
+
+            case KEY_CODES.RIGHT:
+                // Only handle right navigation if there are multiple pages
+                if (totalPages > 1 && currentPage < totalPages) {
+                    e.preventDefault();
+                    changePage(currentPage + 1);
+                }
+                break;
+
+            case KEY_CODES.ESC:
+                e.preventDefault();
+                resetAllFilters();
+                break;
+
+            case KEY_CODES.UP:
+                e.preventDefault();
+                if (currentFocusedLink <= 0) {
+                    currentFocusedLink = links.length - 1;
+                } else {
+                    currentFocusedLink--;
+                }
+                focusLink(links[currentFocusedLink]);
+                break;
+
+            case KEY_CODES.DOWN:
+                e.preventDefault();
+                if (currentFocusedLink >= links.length - 1) {
+                    currentFocusedLink = 0;
+                } else {
+                    currentFocusedLink++;
+                }
+                focusLink(links[currentFocusedLink]);
+                break;
+
+            case KEY_CODES.SPACE:
+                e.preventDefault();
+                if (currentFocusedLink >= 0 && currentFocusedLink < links.length) {
+                    window.open(links[currentFocusedLink].href, '_blank');
+                }
+                break;
+        }
+    });
+}
+
+// Add new function to reset all filters
+function resetAllFilters() {
+    // Reset search input
+    document.getElementById('searchInput').value = '';
+    
+    // Reset surah filter
+    document.getElementById('surahFilter').value = '';
+    
+    // Reset flow name filter
+    document.getElementById('flowNameFilter').value = '';
+    
+    // Reset page
+    currentPage = 1;
+    
+    // Reset focus
+    currentFocusedLink = -1;
+    
+    // Update UI
+    updateFlowNameFilter();
+    updateSearchSuggestions();
+    renderTable();
+}
+
+function focusLink(link) {
+    if (link) {
+        link.focus();
+        link.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+// Add CSS for focused links
+const style = document.createElement('style');
+style.textContent = `
+    .verse-link:focus {
+        outline: 2px solid #007bff;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        padding: 2px 6px;
+    }
+`;
+document.head.appendChild(style);
+
+// Initialize keyboard navigation when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    // ...existing code...
+    initKeyboardNavigation();
 });
