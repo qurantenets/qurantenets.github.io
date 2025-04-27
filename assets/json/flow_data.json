@@ -847,12 +847,102 @@
       "surah_id": 3
     },
     {
-      "end_verse_no": 20,
+      "end_verse_no": 25,
       "flow_description": "",
       "flow_name": "Disbeliever",
       "id": 97,
       "order": 97,
       "start_verse_no": 19,
+      "surah_id": 3
+    },
+    {
+      "end_verse_no": 27,
+      "flow_description": "",
+      "flow_name": "Allahs Power",
+      "id": 98,
+      "order": 98,
+      "start_verse_no": 26,
+      "surah_id": 3
+    },
+    {
+      "end_verse_no": 28,
+      "flow_description": "",
+      "flow_name": "Friends",
+      "id": 99,
+      "order": 99,
+      "start_verse_no": 28,
+      "surah_id": 3
+    },
+    {
+      "end_verse_no": 29,
+      "flow_description": "",
+      "flow_name": "Allahs Power",
+      "id": 100,
+      "order": 100,
+      "start_verse_no": 29,
+      "surah_id": 3
+    },
+    {
+      "end_verse_no": 30,
+      "flow_description": "",
+      "flow_name": "Judgement day",
+      "id": 101,
+      "order": 101,
+      "start_verse_no": 30,
+      "surah_id": 3
+    },
+    {
+      "end_verse_no": 32,
+      "flow_description": "",
+      "flow_name": "Allah Mercy",
+      "id": 102,
+      "order": 102,
+      "start_verse_no": 31,
+      "surah_id": 3
+    },
+    {
+      "end_verse_no": 41,
+      "flow_description": "",
+      "flow_name": "Zechariah",
+      "id": 103,
+      "order": 103,
+      "start_verse_no": 33,
+      "surah_id": 3
+    },
+    {
+      "end_verse_no": 48,
+      "flow_description": "",
+      "flow_name": "Mary",
+      "id": 104,
+      "order": 104,
+      "start_verse_no": 42,
+      "surah_id": 3
+    },
+    {
+      "end_verse_no": 63,
+      "flow_description": "",
+      "flow_name": "Jesus",
+      "id": 105,
+      "order": 105,
+      "start_verse_no": 49,
+      "surah_id": 3
+    },
+    {
+      "end_verse_no": 82,
+      "flow_description": "",
+      "flow_name": "People of Book",
+      "id": 106,
+      "order": 106,
+      "start_verse_no": 64,
+      "surah_id": 3
+    },
+    {
+      "end_verse_no": 90,
+      "flow_description": "",
+      "flow_name": "Religion",
+      "id": 107,
+      "order": 107,
+      "start_verse_no": 83,
       "surah_id": 3
     }
   ]

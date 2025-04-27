@@ -182,14 +182,21 @@ function renderTable() {
             <td>${item.order}</td>
             <td>${item.flow_name}</td>
             <td>
-                <a href="${createVerseLink(item.surah_id, item.start_verse_no, item.end_verse_no)}" 
-                   target="_blank" 
-                   class="verse-link"
-                   title="Open verses in Quran.com">
-                    ${item.start_verse_no === item.end_verse_no 
-                        ? item.start_verse_no 
-                        : `${item.start_verse_no} to ${item.end_verse_no}`}
-                </a>
+                <div style="display: flex; align-items: center;">
+                    <a href="${createVerseLink(item.surah_id, item.start_verse_no, item.end_verse_no)}" 
+                       target="_blank" 
+                       class="verse-link"
+                       title="Open verses in Quran.com">
+                        ${item.start_verse_no === item.end_verse_no 
+                            ? item.start_verse_no 
+                            : `${item.start_verse_no} to ${item.end_verse_no}`}
+                    </a>
+                    <button class="preview-icon" 
+                            title="Preview verses"
+                            onclick="openVerseModal('${createVerseLink(item.surah_id, item.start_verse_no, item.end_verse_no)}')">
+                        👁️
+                    </button>
+                </div>
             </td>
             <td>${item.surah_id}</td>
             <td class="verses-count ${document.getElementById('showVersesCount').checked ? 'show' : ''}">
@@ -543,4 +550,38 @@ document.head.appendChild(style);
 document.addEventListener('DOMContentLoaded', () => {
     // ...existing code...
     initKeyboardNavigation();
+});
+
+function openVerseModal(url) {
+    const modal = document.getElementById('verseModal');
+    const iframe = document.getElementById('verseFrame');
+    iframe.src = url;
+    modal.style.display = 'block';
+}
+
+document.querySelector('.close-modal').addEventListener('click', () => {
+    const modal = document.getElementById('verseModal');
+    const iframe = document.getElementById('verseFrame');
+    modal.style.display = 'none';
+    iframe.src = '';
+});
+
+// Close modal when clicking outside
+window.addEventListener('click', (e) => {
+    const modal = document.getElementById('verseModal');
+    if (e.target === modal) {
+        modal.style.display = 'none';
+        document.getElementById('verseFrame').src = '';
+    }
+});
+
+// Close modal with ESC key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('verseModal');
+        if (modal.style.display === 'block') {
+            modal.style.display = 'none';
+            document.getElementById('verseFrame').src = '';
+        }
+    }
 });
