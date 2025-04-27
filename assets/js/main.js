@@ -585,3 +585,61 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
+// Analytics tracking functions
+function trackEvent(eventName, params = {}) {
+    gtag('event', eventName, params);
+}
+
+// Track verse clicks
+// document.addEventListener('click', function(e) {
+//     if (e.target.closest('.verse-link')) {
+//         const link = e.target.closest('.verse-link');
+//         trackEvent('verse_click', {
+//             'verse_url': link.href
+//         });
+//     }
+    
+//     if (e.target.closest('.preview-icon')) {
+//         trackEvent('verse_preview', {
+//             'verse_url': e.target.closest('.preview-icon').getAttribute('onclick').match(/'(.+?)'/)[1]
+//         });
+//     }
+// });
+
+// // Track social link clicks
+// document.querySelectorAll('.social-link').forEach(link => {
+//     link.addEventListener('click', function() {
+//         trackEvent('social_click', {
+//             'platform': this.href.includes('youtube') ? 'youtube' : 'linkedin'
+//         });
+//     });
+// });
+
+// Track search
+// document.getElementById('searchInput').addEventListener('input', function(e) {
+//     if (e.target.value.trim().length > 2) {
+//         trackEvent('search', {
+//             'search_term': e.target.value.trim()
+//         });
+//     }
+// });
+
+// Track filter usage
+document.getElementById('surahFilter').addEventListener('change', function(e) {
+    if (e.target.value) {
+        trackEvent('filter_use', {
+            'filter_type': 'surah',
+            'value': e.target.value
+        });
+    }
+});
+
+document.getElementById('flowNameFilter').addEventListener('change', function(e) {
+    if (e.target.value) {
+        trackEvent('filter_use', {
+            'filter_type': 'topic',
+            'value': e.target.value
+        });
+    }
+});
