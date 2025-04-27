@@ -9,14 +9,26 @@
     <!-- Google Analytics -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-0FG3FEVN0J"></script>
     <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
+    if (localStorage.getItem('cookieConsent') === 'accepted') {
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
 
-    gtag('config', 'G-0FG3FEVN0J');
+        gtag('config', 'G-0FG3FEVN0J');
+    }else{
+        console.log("Google Analytics is disabled due to cookie consent not being accepted.");
+    }
     </script>
 </head>
 <body>
+    <div id="cookieConsent" class="cookie-consent">
+        <p>This website uses Google Analytics to understand how you use the site and improve user experience. 
+           By continuing to use this site, you consent to our use of cookies.</p>
+        <div class="cookie-buttons">
+            <button id="acceptCookies" class="cookie-btn accept">Accept</button>
+            <button id="declineCookies" class="cookie-btn decline">Decline</button>
+        </div>
+    </div>
     <div class="container">
         <h1>🕋 Quran Flow 📖</h1>
         

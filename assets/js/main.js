@@ -643,3 +643,37 @@ document.getElementById('flowNameFilter').addEventListener('change', function(e)
         });
     }
 });
+
+function initCookieConsent() {
+    const consentStatus = localStorage.getItem('cookieConsent');
+    const consentBanner = document.getElementById('cookieConsent');
+
+    if (!consentStatus) {
+        consentBanner.style.display = 'block';
+    }
+
+    document.getElementById('acceptCookies').addEventListener('click', () => {
+        localStorage.setItem('cookieConsent', 'accepted');
+        consentBanner.style.display = 'none';
+        // Initialize GA after consent
+        initializeGA();
+    });
+
+    document.getElementById('declineCookies').addEventListener('click', () => {
+        localStorage.setItem('cookieConsent', 'declined');
+        consentBanner.style.display = 'none';
+        // Disable GA tracking
+        window['ga-disable-G-XXXXXXXXXX'] = true;
+    });
+}
+
+function initializeGA() {
+    // Your existing GA initialization code
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+}
+
+// Initialize cookie consent on page load
+document.addEventListener('DOMContentLoaded', initCookieConsent);
