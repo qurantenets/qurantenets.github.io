@@ -193,7 +193,7 @@
     tabs.forEach(t => t.addEventListener('click', () => { history.replaceState(null, '', '#' + t.dataset.view); show(t.dataset.view); }));
     window.addEventListener('hashchange', () => show(location.hash.slice(1)));
 
-    const list = $('#all-flows'), table = $('#flow-table'), fq = $('#f-q'), fs = $('#f-surah'), ft = $('#f-topic'), fd = $('#f-desc'), fc = $('#f-count'), total = $('#f-total');
+    const list = $('#all-flows'), table = $('#flow-table'), fq = $('#f-q'), fs = $('#f-surah'), fchips = $('#f-chips'), fac = $('#f-ac'), fd = $('#f-desc'), fc = $('#f-count'), total = $('#f-total');
     fd.checked = store.get('qf-desc', false); fc.checked = store.get('qf-count', true);
     const applyView = () => { table.classList.toggle('hide-desc', !fd.checked); table.classList.toggle('hide-count', !fc.checked); };
     applyView();
@@ -248,18 +248,18 @@
     const norm = s => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9: ]+/g, ' ').replace(/\s+/g, ' ').trim();
     async function apply() {
       const my = ++gen;
-      const q = fq.value.trim(), s = +fs.value || 0, t = ft.value;
-      store.set('qf-filter', { s: fs.value, t });
+      const q = fq.value.trim(), s = +fs.value || 0, t = [...sel];
+      store.set('qf-filter', { s: fs.value }); store.set('qf-topics', t);
       list.innerHTML = '<li class="loading">Loading flows…</li>'; shown = 0; kb = -1;
       const ref = q.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
-      if (!q && !t && sort.key === 'no' && sort.dir === 1) {
+      if (!q && !t.length && sort.key === 'no' && sort.dir === 1) {
         const sp = s ? meta.span[String(s)] : [0, meta.flows - 1];
         source = sp ? streamSource(sp[0], sp[1]) : arraySource([]);
         const n = s ? (sp ? sp[1] - sp[0] + 1 : 0) : meta.flows;
         total.textContent = s ? `${n} flow${n === 1 ? '' : 's'} in ${surahName(s)}` : `${meta.flows.toLocaleString()} flows · ${meta.verses.toLocaleString()} verses`;
       } else {
         const data = await loadAll(); if (my !== gen) return;
-        let r = data.filter(f => (!s || f[1] === s) && (!t || f[5] === t));
+        let r = data.filter(f => (!s || f[1] === s) && (!t.length || sel.has(f[5])));
         if (ref) { const S = +ref[1], V = +ref[2]; r = r.filter(f => f[1] === S && f[2] <= V && f[3] >= V); }
         else if (q) { const w = norm(q).split(' '); r = r.filter(f => { const h = norm(`${f[4]} ${f[6]} ${surahName(f[1])}`); return w.every(x => h.includes(x)); }); }
         const key = { no: f => f[0], name: f => f[4].toLowerCase(), count: f => f[3] - f[2] + 1, surah: f => f[1] * 10000 + f[2] }[sort.key];
@@ -277,16 +277,42 @@
         const sp = m.span[String(s[0])], n = sp ? sp[1] - sp[0] + 1 : 0;
         return `<option value="${s[0]}"${n ? '' : ' disabled'}>${s[0]}. ${esc(s[1])} (${n})</option>`;
       }).join('');
-      ft.innerHTML = '<option value="">All topics</option>' + m.topics.map(t => `<option value="${t[0]}">${esc(t[1])} (${t[2]}) (${t[3]} verses)</option>`).join('');
       const st = store.get('qf-filter', {});
       if (st.s && fs.querySelector(`option[value="${st.s}"]:not([disabled])`)) fs.value = st.s;
-      if (st.t && ft.querySelector(`option[value="${st.t}"]`)) ft.value = st.t;
+      m.topics.forEach(t => topicBy.set(t[0], t));
+      store.get('qf-topics', []).forEach(x => { if (topicBy.has(x)) sel.add(x); }); if (st.t && topicBy.has(st.t)) sel.add(st.t);
+      drawChips();
       show(location.hash.slice(1));
       apply();
     }).catch(e => { list.innerHTML = `<li class="empty">The flows could not be loaded (${esc(e.message)}). Reload the page to try again.</li>`; });
 
-    let qt; fq.addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(apply, 220); });
-    fs.addEventListener('change', apply); ft.addEventListener('change', apply);
+    /* Topic chips: pick several topics; the list shows flows under any of them. Typed text that is not
+       picked stays a text search (names, descriptions, surah names) or a verse reference like 2:255. */
+    const sel = new Set(), topicBy = new Map();
+    let acSel = -1, acOpts = [];
+    function drawChips() {
+      fchips.innerHTML = [...sel].map(slug => { const t = topicBy.get(slug); return t ? `<span class="f-chip">${esc(t[1])}<small>${t[3]}</small><button type="button" data-unchip="${slug}" aria-label="Remove ${esc(t[1])}">×</button></span>` : ''; }).join('');
+    }
+    function drawAc() {
+      const q = norm(fq.value);
+      acOpts = !meta || !q ? [] : meta.topics.filter(t => !sel.has(t[0]) && norm(t[1]).includes(q)).sort((a, b) => b[3] - a[3]).slice(0, 12);
+      fac.innerHTML = acOpts.map((t, i) => `<li role="option" data-i="${i}" aria-selected="${i === acSel}">${esc(t[1])}<small>${t[2]} flows · ${t[3]} verses</small></li>`).join('');
+      fac.hidden = !acOpts.length;
+    }
+    function pick(t) { sel.add(t[0]); fq.value = ''; acSel = -1; fac.hidden = true; drawChips(); apply(); fq.focus(); }
+    fchips.addEventListener('click', e => { const b = e.target.closest('[data-unchip]'); if (b) { sel.delete(b.dataset.unchip); drawChips(); apply(); } });
+    fac.addEventListener('mousedown', e => { const li = e.target.closest('li[data-i]'); if (li) { e.preventDefault(); pick(acOpts[+li.dataset.i]); } });
+    fq.addEventListener('blur', () => setTimeout(() => { fac.hidden = true; }, 150));
+    fq.addEventListener('focus', drawAc);
+    fq.addEventListener('keydown', e => {
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && acOpts.length) { e.preventDefault(); acSel = Math.max(0, Math.min(acOpts.length - 1, acSel + (e.key === 'ArrowDown' ? 1 : -1))); drawAc(); }
+      else if (e.key === 'Enter' && !fac.hidden && acOpts.length) { e.preventDefault(); pick(acOpts[acSel >= 0 ? acSel : 0]); }
+      else if (e.key === 'Backspace' && !fq.value && sel.size) { sel.delete([...sel].pop()); drawChips(); apply(); }
+    });
+    $('#f-tags').addEventListener('click', e => { if (e.target.id === 'f-tags' || e.target.id === 'f-chips') fq.focus(); });
+
+    let qt; fq.addEventListener('input', () => { acSel = -1; drawAc(); clearTimeout(qt); qt = setTimeout(apply, 220); });
+    fs.addEventListener('change', apply);
     fd.addEventListener('change', () => { store.set('qf-desc', fd.checked); applyView(); });
     fc.addEventListener('change', () => { store.set('qf-count', fc.checked); applyView(); });
     $$('[data-sort]', table).forEach(b => b.addEventListener('click', () => {
@@ -299,7 +325,7 @@
     document.addEventListener('keydown', e => {
       if ($('#flows').hidden || !dlg.hidden) return;
       const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
-      if (e.key === 'Escape') { fq.value = ''; fs.value = ''; ft.value = ''; sort = { key: 'no', dir: 1 }; $$('[data-sort]', table).forEach(x => x.setAttribute('aria-sort', x.dataset.sort === 'no' ? 'ascending' : 'none')); if (typing) document.activeElement.blur(); apply(); return; }
+      if (e.key === 'Escape') { if (!fac.hidden) { fac.hidden = true; return; } fq.value = ''; fs.value = ''; sel.clear(); drawChips(); sort = { key: 'no', dir: 1 }; $$('[data-sort]', table).forEach(x => x.setAttribute('aria-sort', x.dataset.sort === 'no' ? 'ascending' : 'none')); if (typing) document.activeElement.blur(); apply(); return; }
       if (typing) return;
       const lis = $$('.fl', list);
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -328,12 +354,12 @@
       const draw = () => {
         if (!window.d3) { box.innerHTML = ''; return; }
         const cs = getComputedStyle(document.documentElement), c = k => cs.getPropertyValue(k).trim();
-        const W = 1500, root = window.d3.hierarchy({ children: topics }).sum(d => d.v);
+        const W = 1500, root = window.d3.hierarchy({ children: topics }).sum(d => Math.max(d.v, 8)); // a floor keeps 1-7 verse topics readable; the label shows the real count
         window.d3.pack().size([W, W]).padding(5)(root);
         const leaves = root.leaves(), max = Math.max(...leaves.map(l => l.r));
         leaves.forEach(l => { l.wx = l.x - W / 2; l.wy = l.y - W / 2; });
         const ns = 'http://www.w3.org/2000/svg';
-        box.innerHTML = `<p class="bub-hint" aria-hidden="true">Drag, swipe or scroll to explore · tap a topic to open it</p>`;
+        box.innerHTML = `<p class="bub-hint" aria-hidden="true">Drag, swipe or scroll to explore · pinch or Ctrl+scroll to zoom · tap a topic to open it</p>`;
         const svg = document.createElementNS(ns, 'svg');
         svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${topics.length} topics sized by verse count; the list below has them all`);
         box.appendChild(svg);
@@ -343,13 +369,13 @@
           const g = document.createElementNS(ns, 'g'); g.setAttribute('class', 'bub'); g.dataset.slug = l.data.slug;
           g.innerHTML = `<title>${esc(l.data.name)}: ${l.data.v} verses in ${l.data.n} flows</title>` +
             `<circle r="${l.r.toFixed(1)}" fill="${big ? c('--accent') : c('--soft')}" stroke="${c('--gold')}" stroke-width="${big ? 0 : 1.2}"></circle>` +
-            `<text class="bn" text-anchor="middle" dy="${l.r > 30 ? '-.15em' : '.35em'}" font-size="${fs.toFixed(1)}" fill="${big ? c('--accent-ink') : c('--fg')}">${esc(name)}</text>` +
-            (l.r > 30 ? `<text class="bc" text-anchor="middle" dy="${(fs * 0.055 + 1.05).toFixed(2)}em" font-size="${(fs * 0.62).toFixed(1)}" fill="${big ? c('--accent-ink') : c('--muted')}">${l.data.v} verses</text>` : '');
+            `<text class="bn" text-anchor="middle" dy="${l.r > 18 ? '-.15em' : '.35em'}" font-size="${fs.toFixed(1)}" fill="${big ? c('--accent-ink') : c('--fg')}">${esc(name)}</text>` +
+            (l.r > 18 ? `<text class="bc" text-anchor="middle" dy="${(fs * 0.055 + 1.05).toFixed(2)}em" font-size="${(fs * 0.62).toFixed(1)}" fill="${big ? c('--accent-ink') : c('--muted')}">${l.data.v} verses</text>` : '');
           svg.appendChild(g);
           return { l, g };
         });
         let px = 0, py = 0, vx = 0, vy = 0, zoom = 1, raf = 0;
-        const lim = Math.max(...leaves.map(l => Math.hypot(l.wx, l.wy))) * 0.62; // keep the view's centre inside the cluster
+        const lim = Math.max(...leaves.map(l => Math.hypot(l.wx, l.wy) + l.r)); // every bubble, the outermost too, can be brought to the centre
         const clamp = () => { const d = Math.hypot(px, py); if (d > lim) { px *= lim / d; py *= lim / d; vx *= 0.5; vy *= 0.5; } };
         let base = 1;
         const render = () => {
@@ -363,8 +389,8 @@
             g.style.display = onScreen ? '' : 'none';
             if (!onScreen) continue;
             g.setAttribute('transform', `translate(${(cx + x * k).toFixed(1)} ${(cy + y * k).toFixed(1)}) scale(${sc.toFixed(3)})`);
-            g.classList.toggle('nolabel', l.r * sc < 14);
-            g.classList.toggle('nocount', l.r * sc < 28);
+            g.classList.toggle('nolabel', l.r * sc < 12);
+            g.classList.toggle('nocount', l.r * sc < 20);
           }
         };
         const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -378,8 +404,16 @@
           raf = requestAnimationFrame(step);
         };
         let down = null, moved = 0, last = null;
-        box.addEventListener('pointerdown', e => { if (e.button !== 0) return; cancelAnimationFrame(raf); down = { x: e.clientX, y: e.clientY }; last = { x: e.clientX, y: e.clientY, t: performance.now() }; moved = 0; box.setPointerCapture(e.pointerId); box.classList.add('dragging'); });
+        const pts = new Map(); let pinch = null;
+        box.addEventListener('pointerdown', e => {
+          if (e.button !== 0) return; cancelAnimationFrame(raf); try { box.setPointerCapture(e.pointerId); } catch (err) { /* synthetic or lost pointer: dragging still works */ }
+          pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: zoom }; moved = 99; return; }
+          down = { x: e.clientX, y: e.clientY }; last = { x: e.clientX, y: e.clientY, t: performance.now() }; moved = 0; box.classList.add('dragging');
+        });
         box.addEventListener('pointermove', e => {
+          if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; zoom = Math.max(0.6, Math.min(2.6, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)); render(); return; }
           if (!down) return;
           const dx = e.clientX - last.x, dy = e.clientY - last.y, now = performance.now(), dt = Math.max(1, now - last.t);
           moved += Math.abs(dx) + Math.abs(dy);
@@ -388,6 +422,7 @@
           last = { x: e.clientX, y: e.clientY, t: now }; render();
         });
         const end = e => {
+          pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
           if (!down) return;
           box.classList.remove('dragging');
           if (moved < 6) {
@@ -396,10 +431,10 @@
           } else if (performance.now() - last.t < 80) glide();
           down = null;
         };
-        box.addEventListener('pointerup', end); box.addEventListener('pointercancel', () => { down = null; box.classList.remove('dragging'); });
+        box.addEventListener('pointerup', end); box.addEventListener('pointercancel', e => { pts.delete(e.pointerId); pinch = null; down = null; box.classList.remove('dragging'); });
         box.addEventListener('wheel', e => {
           e.preventDefault(); cancelAnimationFrame(raf);
-          if (e.ctrlKey) { zoom = Math.max(0.6, Math.min(2.2, zoom * Math.exp(-e.deltaY / 300))); }
+          if (e.ctrlKey) { zoom = Math.max(0.6, Math.min(2.6, zoom * Math.exp(-e.deltaY / 300))); }
           else { px -= e.deltaX / (zoom * base); py -= e.deltaY / (zoom * base); clamp(); }
           render();
         }, { passive: false });
