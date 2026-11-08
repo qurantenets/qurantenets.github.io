@@ -31,7 +31,8 @@
     const next = cur === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem('qf-theme', next); } catch (e) { /* ignore */ }
-    if (window.__qfBubbles) window.__qfBubbles();
+    const b = document.getElementById('bubbles');
+    if (window.__qfBubbles && b && b.offsetParent) window.__qfBubbles(); // hidden: the Topics tab redraws when opened
   });
 
   /* ---------- analytics, only after consent ---------- */
@@ -201,9 +202,11 @@
     const chunks = new Map();
     const chunk = k => { if (!chunks.has(k)) chunks.set(k, fetch(`${BASE}data/flows/c${k}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })); return chunks.get(k); };
     const metaP = fetch(BASE + 'data/flows/meta.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
-    const loadAll = async () => { if (!all) all = (await Promise.all(Array.from({ length: meta.chunks }, (_, k) => chunk(k)))).flat(); return all; };
+    // Search, topic filters and sorting read the one compact index (one request, cached), never every list chunk.
+    const loadAll = async () => { if (!all) all = (await index()).flows; return all; };
     const surahName = s => meta.surahs[s - 1][1];
-    const PAGE = 30;
+    const PAGE = 30, DWELL_MS = 2000, AHEAD_PX = 300;
+    const moreEl = $('#flows-more');
 
     function rowHTML(f) {
       return `<li class="fl" id="f-${f[1]}-${f[2]}" data-s="${f[1]}" data-a="${f[2]}" data-b="${f[3]}" data-slug="${f[5]}"><span class="c-no">${f[0]}</span>` +
@@ -212,45 +215,55 @@
     }
 
     /* Rows arrive in two ways. The everyday path (no search, no topic, reading order) pulls one 40-flow
-       chunk at a time as the reader nears the end of the list. Anything that needs the whole list
-       (search, topic filter, another sort) loads every chunk once and then works in memory. */
+       chunk at a time as the reader stays at the end of the list. Anything that needs the whole list
+       (search, topic chips, another sort) reads the one search index, fetched once, and works in memory. */
     let source = null; // { next: async () => array|null }
     function streamSource(fromIdx, toIdx) {
       let i = fromIdx;
-      return { async next() {
+      return { left: () => i <= toIdx, async next() {
         if (i > toIdx) return null;
         const k = Math.floor(i / meta.chunk), part = await chunk(k);
         const start = i - k * meta.chunk, end = Math.min(part.length - 1, toIdx - k * meta.chunk);
         const out = part.slice(start, end + 1); i = (k + 1) * meta.chunk; return out;
       } };
     }
-    function arraySource(arr) { let i = 0; return { async next() { if (i >= arr.length) return null; const out = arr.slice(i, i + PAGE); i += PAGE; return out; } }; }
+    function arraySource(arr) { let i = 0; return { left: () => i < arr.length, async next() { if (i >= arr.length) return null; const out = arr.slice(i, i + PAGE); i += PAGE; return out; } }; }
 
-    let io = null, busy = false;
+    /* Loading more, as on manapparai.tech: when the end of the list comes within AHEAD_PX of the screen the
+       loader shows and we wait DWELL_MS; only if the end is still there do we fetch the next batch. Scrolling
+       away cancels the wait, so flicking past the end loads nothing. */
+    let busy = false, dwell = 0;
+    const isNear = () => { const r = moreEl.getBoundingClientRect(); return r.top < window.innerHeight + AHEAD_PX && r.bottom > 0; };
+    function nearEnd() {
+      if (moreEl.hidden || busy || dwell || !isNear() || $('#flows').hidden) return;
+      moreEl.dataset.loading = '';
+      const my = gen;
+      dwell = window.setTimeout(() => { dwell = 0; if (my === gen && !moreEl.hidden && isNear()) more(my); else if (!busy) delete moreEl.dataset.loading; }, DWELL_MS);
+    }
+    function awayFromEnd() { window.clearTimeout(dwell); dwell = 0; if (!busy) delete moreEl.dataset.loading; }
+    new IntersectionObserver(es => { if (es[es.length - 1].isIntersecting) nearEnd(); else awayFromEnd(); }, { rootMargin: `0px 0px ${AHEAD_PX}px 0px` }).observe(moreEl);
+    const dropSkeleton = () => { for (const x of $$('.sk', list)) x.parentNode.removeChild(x); };
     async function more(my) {
-      if (busy || !source) return; busy = true;
+      if (busy || !source) return; busy = true; moreEl.dataset.loading = '';
       try {
         const got = await source.next();
         if (my !== gen) return;
-        $('.sentinel', list)?.remove();
-        if (got && got.length) { list.insertAdjacentHTML('beforeend', got.map(rowHTML).join('')); shown += got.length; list.insertAdjacentHTML('beforeend', '<li class="sentinel" aria-hidden="true"></li>'); watch(my); }
+        dropSkeleton();
+        if (got && got.length) { list.insertAdjacentHTML('beforeend', got.map(rowHTML).join('')); shown += got.length; }
         else if (!shown) list.innerHTML = '<li class="empty">No flows match. Clear the search or filters, or press Esc.</li>';
-      } catch (e) { if (my === gen) list.insertAdjacentHTML('beforeend', `<li class="empty">Could not load more flows (${esc(e.message)}). Scroll again to retry.</li>`); }
-      finally { busy = false; }
+        moreEl.hidden = !source.left();
+      } catch (e) { if (my === gen) { dropSkeleton(); list.insertAdjacentHTML('beforeend', `<li class="empty">Could not load more flows (${esc(e.message)}). Scroll again to retry.</li>`); } }
+      finally { busy = false; if (my === gen) { delete moreEl.dataset.loading; nearEnd(); } }
     }
-    function watch(my) {
-      if (io) io.disconnect();
-      const s = $('.sentinel', list); if (!s) return;
-      io = new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) more(my); }, { rootMargin: '300px' });
-      io.observe(s);
-    }
+    const skeleton = n => Array.from({ length: n }, () => '<li class="sk" aria-hidden="true"><span class="skel w6"></span><span class="skel w40"></span><span class="skel w14"></span><span class="skel w20"></span><span class="skel w6"></span></li>').join('');
 
     const norm = s => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9: ]+/g, ' ').replace(/\s+/g, ' ').trim();
     async function apply() {
       const my = ++gen;
       const q = fq.value.trim(), s = +fs.value || 0, t = [...sel];
       store.set('qf-filter', { s: fs.value }); store.set('qf-topics', t);
-      list.innerHTML = '<li class="loading">Loading flows…</li>'; shown = 0; kb = -1;
+      awayFromEnd(); moreEl.hidden = true;
+      list.innerHTML = skeleton(8); shown = 0; kb = -1;
       const ref = q.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
       if (!q && !t.length && sort.key === 'no' && sort.dir === 1) {
         const sp = s ? meta.span[String(s)] : [0, meta.flows - 1];
@@ -268,7 +281,7 @@
         const v = r.reduce((n, f) => n + f[3] - f[2] + 1, 0);
         total.textContent = `${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
       }
-      list.innerHTML = ''; await more(my);
+      await more(my);
     }
 
     metaP.then(m => {
@@ -350,52 +363,119 @@
       const box = $('#bubbles');
       /* Apple Watch style field: one packed layout (biggest topics in the middle, sized by verse count),
          dragged, swiped or scrolled around. Bubbles shrink and bunch up toward the edge (a tanh lens), so the
-         topics around the one in the centre stay in view. A tap without dragging opens the topic. */
+         topics around the one in the centre stay in view. Tapping a topic that is small or far out glides it to
+         the centre and zooms in; tapping a topic you can read opens it. */
       const draw = () => {
         if (!window.d3) { box.innerHTML = ''; return; }
+        if (box._qf) box._qf.abort(); // a redraw (theme change) replaces the old listeners, never adds to them
+        const ac = box._qf = new AbortController(), on = (t, f, o) => box.addEventListener(t, f, { ...o, signal: ac.signal });
         const cs = getComputedStyle(document.documentElement), c = k => cs.getPropertyValue(k).trim();
-        const W = 1500, root = window.d3.hierarchy({ children: topics }).sum(d => Math.max(d.v, 8)); // a floor keeps 1-7 verse topics readable; the label shows the real count
+        const W = 1500, root = window.d3.hierarchy({ children: topics }).sum(d => Math.max(d.v, 8)); // a floor keeps 1-7 verse topics tappable; the label shows the real count
         window.d3.pack().size([W, W]).padding(5)(root);
         const leaves = root.leaves(), max = Math.max(...leaves.map(l => l.r));
         leaves.forEach(l => { l.wx = l.x - W / 2; l.wy = l.y - W / 2; });
+
+        /* The whole name always sits inside its circle, never cut short. Every way of breaking it into lines is
+           measured in the real font, and the break that allows the biggest type wins (fewer lines on a near tie).
+           Each line's full height in the font (ascent to descent) and its width must clear the circle's edge, both
+           with the verse count under it and re-centred when the count is too small to show. Small circles get
+           small type that becomes readable as you zoom in. */
+        // Measured with an SVG text styled exactly like the labels (optical sizing off, so width scales with size).
         const ns = 'http://www.w3.org/2000/svg';
-        box.innerHTML = `<p class="bub-hint" aria-hidden="true">Drag, swipe or scroll to explore · pinch or Ctrl+scroll to zoom · tap a topic to open it</p>`;
+        box.innerHTML = '<p class="bub-hint" aria-hidden="true">Drag to explore · pinch, Ctrl+scroll or + − to zoom · tap a small topic to bring it close, tap again to open</p>' +
+          '<div class="bub-zoom"><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="out" aria-label="Zoom out">−</button></div>';
         const svg = document.createElementNS(ns, 'svg');
         svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${topics.length} topics sized by verse count; the list below has them all`);
         box.appendChild(svg);
+        const meas = document.createElementNS(ns, 'text'); meas.setAttribute('font-size', '100'); meas.setAttribute('visibility', 'hidden'); svg.appendChild(meas);
+        const em = t => { meas.textContent = t; return meas.getComputedTextLength() / 100; };
+        meas.textContent = 'Hg'; const mb = meas.getBBox();
+        const ASC = -mb.y / 100 || 0.92, DSC = (mb.height + mb.y) / 100 || 0.26; // the font's ascent and descent, in ems
+        const LH = 1.16, CS = 0.62, CG = 0.08; // line step, count size and the gap above the count, in ems of the name
+        const layout = (name, count, r) => {
+          const words = name.split(/\s+/).filter(Boolean), n = words.length, R = r * 0.9, cands = [];
+          const reach = (w, y0, y1) => R / Math.hypot(w / 2, Math.max(Math.abs(y0), Math.abs(y1))); // largest type that keeps this box inside
+          for (let mask = 0; mask < 1 << (n - 1); mask++) {
+            const lines = [words[0]];
+            for (let i = 1; i < n; i++) { if (mask & (1 << (i - 1))) lines.push(words[i]); else lines[lines.length - 1] += ' ' + words[i]; }
+            const body = ASC + (lines.length - 1) * LH + DSC, H = body + CG + CS * (ASC + DSC);
+            const top = -H / 2, sh = (H - body) / 2; // sh: how far the name moves down when the count is hidden
+            let f = reach(em(count) * CS, top + body + CG, H / 2);
+            lines.forEach((t, i) => {
+              const b = top + ASC + i * LH, w = em(t);
+              f = Math.min(f, reach(w, b - ASC, b + DSC), reach(w, b - ASC + sh, b + DSC + sh));
+            });
+            cands.push({ f, lines, top, sh, body });
+          }
+          const best = Math.max(...cands.map(x => x.f));
+          const pick = cands.filter(x => x.f >= best * 0.96).sort((x, y) => x.lines.length - y.lines.length || y.f - x.f)[0];
+          return { ...pick, fs: Math.min(pick.f, r / 2.6, 30) };
+        };
+
         const nodes = leaves.map(l => {
-          const big = l.r > max * 0.55, fs = Math.max(11, Math.min(26, l.r / 3.6)), lim = Math.floor((l.r * 1.7) / (fs * 0.56));
-          const name = l.data.name.length > lim ? l.data.name.slice(0, Math.max(3, lim - 1)) + '…' : l.data.name;
+          const big = l.r > max * 0.55, count = `${l.data.v} verse${l.data.v === 1 ? '' : 's'}`;
+          const { fs, lines, top, sh, body } = layout(l.data.name, count, l.r), y = e => (e * fs).toFixed(2);
           const g = document.createElementNS(ns, 'g'); g.setAttribute('class', 'bub'); g.dataset.slug = l.data.slug;
+          g.style.setProperty('--sh', `${y(sh)}px`); // re-centres the name when the count is hidden
           g.innerHTML = `<title>${esc(l.data.name)}: ${l.data.v} verses in ${l.data.n} flows</title>` +
             `<circle r="${l.r.toFixed(1)}" fill="${big ? c('--accent') : c('--soft')}" stroke="${c('--gold')}" stroke-width="${big ? 0 : 1.2}"></circle>` +
-            `<text class="bn" text-anchor="middle" dy="${l.r > 18 ? '-.15em' : '.35em'}" font-size="${fs.toFixed(1)}" fill="${big ? c('--accent-ink') : c('--fg')}">${esc(name)}</text>` +
-            (l.r > 18 ? `<text class="bc" text-anchor="middle" dy="${(fs * 0.055 + 1.05).toFixed(2)}em" font-size="${(fs * 0.62).toFixed(1)}" fill="${big ? c('--accent-ink') : c('--muted')}">${l.data.v} verses</text>` : '');
+            `<text class="bn" text-anchor="middle" font-size="${fs.toFixed(2)}" fill="${big ? c('--accent-ink') : c('--fg')}">` +
+            lines.map((t, i) => `<tspan x="0" y="${y(top + ASC + i * LH)}">${esc(t)}</tspan>`).join('') + '</text>' +
+            `<text class="bc" text-anchor="middle" x="0" y="${y(top + body + CG + CS * ASC)}" font-size="${(fs * CS).toFixed(2)}" fill="${big ? c('--accent-ink') : c('--muted')}">${count}</text>`;
           svg.appendChild(g);
-          return { l, g };
+          return { l, g, fs, sc: 0 };
         });
-        let px = 0, py = 0, vx = 0, vy = 0, zoom = 1, raf = 0;
+        meas.remove();
+        const bySlug = new Map(nodes.map(n => [n.l.data.slug, n]));
+        const fsMin = Math.min(...nodes.map(n => n.fs));
+
+        let px = 0, py = 0, vx = 0, vy = 0, zoom = 1, raf = 0, anim = 0, base = 1;
         const lim = Math.max(...leaves.map(l => Math.hypot(l.wx, l.wy) + l.r)); // every bubble, the outermost too, can be brought to the centre
         const clamp = () => { const d = Math.hypot(px, py); if (d > lim) { px *= lim / d; py *= lim / d; vx *= 0.5; vy *= 0.5; } };
-        let base = 1;
+        const Z_MIN = 0.6, zMax = () => Math.max(2.6, 18 / (fsMin * base)); // deep enough that the smallest topic's name reads at about 18px
+        const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
         const render = () => {
           const w = box.clientWidth, h = box.clientHeight, cx = w / 2, cy = h / 2, R = Math.max(w, h) * 0.5;
           base = Math.min(w, h) / 820;
           svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-          for (const { l, g } of nodes) {
+          for (const nd of nodes) {
+            const { l, g } = nd;
             const x = (l.wx + px) * zoom * base, y = (l.wy + py) * zoom * base, d = Math.hypot(x, y) || 1e-6;
-            const t = Math.tanh(d / R), k = (R * t) / d, sc = zoom * base * Math.max(0, 1 - 0.8 * Math.pow(t, 3));
+            // Shrink each bubble by exactly as much as the lens squeezes the space around it (d/dd of R·tanh(d/R)
+            // is 1 − t²), so bubbles near the edge get smaller instead of piling on top of each other.
+            const t = Math.tanh(d / R), k = (R * t) / d, sc = zoom * base * (1 - t * t);
+            nd.sc = sc;
             const onScreen = sc * l.r > 2.5;
             g.style.display = onScreen ? '' : 'none';
             if (!onScreen) continue;
-            g.setAttribute('transform', `translate(${(cx + x * k).toFixed(1)} ${(cy + y * k).toFixed(1)}) scale(${sc.toFixed(3)})`);
-            g.classList.toggle('nolabel', l.r * sc < 12);
-            g.classList.toggle('nocount', l.r * sc < 20);
+            g.setAttribute('transform', `translate(${(cx + x * k).toFixed(1)} ${(cy + y * k).toFixed(1)}) scale(${sc.toFixed(4)})`);
+            g.classList.toggle('nolabel', nd.fs * sc < 6.5); // too small to read yet: zoom in, or tap it
+            g.classList.toggle('nocount', nd.fs * CS * sc < 7);
           }
         };
-        const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        /* Zoom about a point on screen (ox, oy from the centre): undo the lens there, find the spot in the field
+           under it, and move the field so that spot stays put. */
+        const zoomAt = (z, ox = 0, oy = 0) => {
+          z = Math.max(Z_MIN, Math.min(zMax(), z));
+          const R = Math.max(box.clientWidth, box.clientHeight) * 0.5, ds = Math.hypot(ox, oy);
+          const f = ds > 1e-6 ? (R * Math.atanh(Math.min(ds / R, 0.995))) / ds : 1, qx = ox * f, qy = oy * f;
+          const wx = qx / (zoom * base) - px, wy = qy / (zoom * base) - py;
+          zoom = z; px = qx / (zoom * base) - wx; py = qy / (zoom * base) - wy; clamp();
+        };
+        const stop = () => { cancelAnimationFrame(raf); cancelAnimationFrame(anim); };
+        const animateTo = (tx, ty, tz) => {
+          stop(); tz = Math.max(Z_MIN, Math.min(zMax(), tz));
+          if (reduce) { px = tx; py = ty; zoom = tz; clamp(); render(); return; }
+          const fx = px, fy = py, fz = zoom, t0 = performance.now(), T = 420;
+          const step = now => {
+            const u = Math.min(1, (now - t0) / T), e = 1 - Math.pow(1 - u, 3);
+            px = fx + (tx - fx) * e; py = fy + (ty - fy) * e; zoom = fz * Math.pow(tz / fz, e); clamp(); render();
+            if (u < 1) anim = requestAnimationFrame(step);
+          };
+          anim = requestAnimationFrame(step);
+        };
         const glide = () => {
-          cancelAnimationFrame(raf);
+          stop();
           if (reduce) return;
           const step = () => {
             vx *= 0.93; vy *= 0.93; px += vx; py += vy; clamp(); render();
@@ -403,17 +483,30 @@
           };
           raf = requestAnimationFrame(step);
         };
+        // A topic you can read opens; one that is small or far out comes to the centre, large enough to read.
+        const openOrBring = nd => {
+          if (nd.fs * nd.sc >= 12) { location.href = `${BASE}topic/${nd.l.data.slug}/`; return; }
+          const fit = (Math.min(box.clientWidth, box.clientHeight) * 0.42) / (nd.l.r * base); // no bigger than the view
+          animateTo(-nd.l.wx, -nd.l.wy, Math.min(fit, Math.max(zoom, 18 / (nd.fs * base))));
+        };
+        const hitAt = (x, y) => { const el = document.elementsFromPoint(x, y).map(e => e.closest && e.closest('.bub')).find(Boolean); return el && bySlug.get(el.dataset.slug); };
+
         let down = null, moved = 0, last = null;
         const pts = new Map(); let pinch = null;
-        box.addEventListener('pointerdown', e => {
-          if (e.button !== 0) return; cancelAnimationFrame(raf); try { box.setPointerCapture(e.pointerId); } catch (err) { /* synthetic or lost pointer: dragging still works */ }
+        on('pointerdown', e => {
+          if (e.button !== 0 || e.target.closest('.bub-zoom')) return;
+          stop(); try { box.setPointerCapture(e.pointerId); } catch (err) { /* synthetic or lost pointer: dragging still works */ }
           pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-          if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: zoom }; moved = 99; return; }
+          if (pts.size === 2) { const [p1, p2] = [...pts.values()]; pinch = { d: Math.hypot(p1.x - p2.x, p1.y - p2.y), z: zoom }; moved = 99; return; }
           down = { x: e.clientX, y: e.clientY }; last = { x: e.clientX, y: e.clientY, t: performance.now() }; moved = 0; box.classList.add('dragging');
         });
-        box.addEventListener('pointermove', e => {
+        on('pointermove', e => {
           if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-          if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; zoom = Math.max(0.6, Math.min(2.6, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)); render(); return; }
+          if (pinch && pts.size === 2) {
+            const [p1, p2] = [...pts.values()], rc = box.getBoundingClientRect();
+            zoomAt(pinch.z * Math.hypot(p1.x - p2.x, p1.y - p2.y) / pinch.d, (p1.x + p2.x) / 2 - rc.left - rc.width / 2, (p1.y + p2.y) / 2 - rc.top - rc.height / 2);
+            render(); return;
+          }
           if (!down) return;
           const dx = e.clientX - last.x, dy = e.clientY - last.y, now = performance.now(), dt = Math.max(1, now - last.t);
           moved += Math.abs(dx) + Math.abs(dy);
@@ -425,37 +518,40 @@
           pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
           if (!down) return;
           box.classList.remove('dragging');
-          if (moved < 6) {
-            const hit = document.elementsFromPoint(e.clientX, e.clientY).map(el => el.closest && el.closest('.bub')).find(Boolean);
-            if (hit) { location.href = `${BASE}topic/${hit.dataset.slug}/`; return; }
-          } else if (performance.now() - last.t < 80) glide();
+          if (moved < 6) { const nd = hitAt(e.clientX, e.clientY); if (nd) openOrBring(nd); }
+          else if (performance.now() - last.t < 80) glide();
           down = null;
         };
-        box.addEventListener('pointerup', end); box.addEventListener('pointercancel', e => { pts.delete(e.pointerId); pinch = null; down = null; box.classList.remove('dragging'); });
-        box.addEventListener('wheel', e => {
-          e.preventDefault(); cancelAnimationFrame(raf);
-          if (e.ctrlKey) { zoom = Math.max(0.6, Math.min(2.6, zoom * Math.exp(-e.deltaY / 300))); }
+        on('pointerup', end); on('pointercancel', e => { pts.delete(e.pointerId); pinch = null; down = null; box.classList.remove('dragging'); });
+        on('click', e => { const b = e.target.closest('.bub-zoom button'); if (b) animateTo(px, py, zoom * (b.dataset.z === 'in' ? 1.6 : 1 / 1.6)); });
+        on('wheel', e => {
+          e.preventDefault(); stop();
+          if (e.ctrlKey) { const rc = box.getBoundingClientRect(); zoomAt(zoom * Math.exp(-e.deltaY / 300), e.clientX - rc.left - rc.width / 2, e.clientY - rc.top - rc.height / 2); }
           else { px -= e.deltaX / (zoom * base); py -= e.deltaY / (zoom * base); clamp(); }
           render();
         }, { passive: false });
         box.tabIndex = 0;
-        box.addEventListener('keydown', e => {
+        on('keydown', e => {
           const m = { ArrowLeft: [60, 0], ArrowRight: [-60, 0], ArrowUp: [0, 60], ArrowDown: [0, -60] }[e.key];
-          if (m) { e.preventDefault(); px += m[0]; py += m[1]; clamp(); render(); }
-          else if (e.key === '+' || e.key === '=') { zoom = Math.min(2.2, zoom * 1.15); render(); }
-          else if (e.key === '-') { zoom = Math.max(0.6, zoom / 1.15); render(); }
-          else if (e.key === 'Enter') {
-            const w = box.clientWidth, h = box.clientHeight;
-            const hit = document.elementsFromPoint(box.getBoundingClientRect().left + w / 2, box.getBoundingClientRect().top + h / 2).map(el => el.closest && el.closest('.bub')).find(Boolean);
-            if (hit) location.href = `${BASE}topic/${hit.dataset.slug}/`;
+          if (m) { e.preventDefault(); stop(); px += m[0] / zoom; py += m[1] / zoom; clamp(); render(); }
+          else if (e.key === '+' || e.key === '=') animateTo(px, py, zoom * 1.4);
+          else if (e.key === '-') animateTo(px, py, zoom / 1.4);
+          else if (e.key === 'Enter' && !e.target.closest('.bub-zoom')) {
+            const rc = box.getBoundingClientRect(), nd = hitAt(rc.left + rc.width / 2, rc.top + rc.height / 2);
+            if (nd) openOrBring(nd);
           }
         });
-        if (window.ResizeObserver) new ResizeObserver(render).observe(box);
+        if (box._ro) box._ro.disconnect();
+        if (window.ResizeObserver) { box._ro = new ResizeObserver(render); box._ro.observe(box); }
         render();
       };
       window.__qfBubbles = draw;
-      if (window.d3) draw(); else window.addEventListener('load', draw, { once: true });
+      // Measure names in the real font, so wait for it (it is already loading for the page).
+      const go = () => (document.fonts && document.fonts.load ? document.fonts.load('400 16px Literata').then(draw, draw) : draw());
+      if (window.d3) go(); else window.addEventListener('load', go, { once: true });
     }
-    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => window.__qfBubbles && window.__qfBubbles());
+    // Redraw for the new colours only while the field is on screen (labels are measured, which needs it shown);
+    // opening the Topics tab always draws afresh anyway.
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { const b = $('#bubbles'); if (window.__qfBubbles && b && b.offsetParent) window.__qfBubbles(); });
   }
 })();
