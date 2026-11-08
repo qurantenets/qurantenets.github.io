@@ -221,3 +221,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .bubbles .bub.nolabel text, .bubbles .bub.nocount .bc { display: none }
 .bubbles .bub:hover circle { filter: brightness(1.08) }
 .bub-hint { position: absolute; left: 0; right: 0; bottom: 10px; margin: 0; text-align: center; font-size: .78rem; color: var(--muted); pointer-events: none; z-index: 1 }
+/* the whole row opens its verses */
+.fl { cursor: pointer }
+.fl .fl-verses { cursor: auto }
+.fl-open::after { content: ""; display: inline-block; width: .45em; height: .45em; margin-left: .55em; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-.2em) rotate(45deg); transition: transform .15s }
+.fl.open .fl-open::after { transform: translateY(.05em) rotate(-135deg) }
+.fl:hover .fl-open::after { border-color: var(--accent) }

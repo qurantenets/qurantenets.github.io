@@ -101,8 +101,11 @@
     if (willOpen) { renderVerses(li); track('open_flow', { surah: li.dataset.s, start: li.dataset.a }); }
   }
   document.addEventListener('click', e => {
-    const btn = e.target.closest('.fl-open');
-    if (btn) toggle(btn.closest('.fl'));
+    // The whole row opens its verses, as on the old site; links, the open verses and text selection are left alone.
+    const li = e.target.closest('.fl');
+    if (!li || e.target.closest('a, .fl-verses, input, select, label')) return;
+    if (!e.target.closest('.fl-open') && String(window.getSelection && window.getSelection()).length) return;
+    toggle(li);
   });
   const tbl = $('[data-table]');
   $$('[data-desc]').forEach(cb => { cb.checked = store.get('qf-desc-p', true); if (tbl) tbl.classList.toggle('hide-desc', !cb.checked); cb.addEventListener('change', () => { store.set('qf-desc-p', cb.checked); tbl.classList.toggle('hide-desc', !cb.checked); }); });
