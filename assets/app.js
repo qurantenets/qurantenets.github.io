@@ -319,19 +319,101 @@
       const topics = meta.topics.map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3] })).sort((a, b) => b.v - a.v);
       if (!drawn) { $('#topic-list').innerHTML = topics.map(t => `<li><a href="${BASE}topic/${t.slug}/">${esc(t.name)}</a><span>${t.v}</span></li>`).join(''); drawn = true; }
       const box = $('#bubbles');
+      /* Apple Watch style field: one packed layout (biggest topics in the middle, sized by verse count),
+         dragged, swiped or scrolled around. Bubbles shrink and bunch up toward the edge (a tanh lens), so the
+         topics around the one in the centre stay in view. A tap without dragging opens the topic. */
       const draw = () => {
         if (!window.d3) { box.innerHTML = ''; return; }
         const cs = getComputedStyle(document.documentElement), c = k => cs.getPropertyValue(k).trim();
-        const W = 760, root = window.d3.hierarchy({ children: topics }).sum(d => d.v);
-        window.d3.pack().size([W, W]).padding(3)(root);
+        const W = 1500, root = window.d3.hierarchy({ children: topics }).sum(d => d.v);
+        window.d3.pack().size([W, W]).padding(5)(root);
         const leaves = root.leaves(), max = Math.max(...leaves.map(l => l.r));
-        box.innerHTML = `<svg viewBox="0 0 ${W} ${W}" role="img" aria-label="${topics.length} topics sized by verse count">` + leaves.map(l => {
-          const big = l.r > max * 0.55, fs2 = Math.max(10, Math.min(19, l.r / 4.1)), lim = Math.floor(l.r / (fs2 * 0.29));
+        leaves.forEach(l => { l.wx = l.x - W / 2; l.wy = l.y - W / 2; });
+        const ns = 'http://www.w3.org/2000/svg';
+        box.innerHTML = `<p class="bub-hint" aria-hidden="true">Drag, swipe or scroll to explore · tap a topic to open it</p>`;
+        const svg = document.createElementNS(ns, 'svg');
+        svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${topics.length} topics sized by verse count; the list below has them all`);
+        box.appendChild(svg);
+        const nodes = leaves.map(l => {
+          const big = l.r > max * 0.55, fs = Math.max(11, Math.min(26, l.r / 3.6)), lim = Math.floor((l.r * 1.7) / (fs * 0.56));
           const name = l.data.name.length > lim ? l.data.name.slice(0, Math.max(3, lim - 1)) + '…' : l.data.name;
-          return `<a href="${BASE}topic/${l.data.slug}/"><title>${esc(l.data.name)}: ${l.data.v} verses in ${l.data.n} flows</title>` +
-            `<circle cx="${l.x.toFixed(1)}" cy="${l.y.toFixed(1)}" r="${l.r.toFixed(1)}" fill="${big ? c('--accent') : c('--soft')}" stroke="${c('--gold')}" stroke-width="${big ? 0 : 1}"></circle>` +
-            (l.r > 20 ? `<text x="${l.x.toFixed(1)}" y="${l.y.toFixed(1)}" dy=".35em" text-anchor="middle" font-size="${fs2.toFixed(1)}" fill="${big ? c('--accent-ink') : c('--fg')}">${esc(name)}</text>` : '') + '</a>';
-        }).join('') + '</svg>';
+          const g = document.createElementNS(ns, 'g'); g.setAttribute('class', 'bub'); g.dataset.slug = l.data.slug;
+          g.innerHTML = `<title>${esc(l.data.name)}: ${l.data.v} verses in ${l.data.n} flows</title>` +
+            `<circle r="${l.r.toFixed(1)}" fill="${big ? c('--accent') : c('--soft')}" stroke="${c('--gold')}" stroke-width="${big ? 0 : 1.2}"></circle>` +
+            `<text class="bn" text-anchor="middle" dy="${l.r > 30 ? '-.15em' : '.35em'}" font-size="${fs.toFixed(1)}" fill="${big ? c('--accent-ink') : c('--fg')}">${esc(name)}</text>` +
+            (l.r > 30 ? `<text class="bc" text-anchor="middle" dy="${(fs * 0.055 + 1.05).toFixed(2)}em" font-size="${(fs * 0.62).toFixed(1)}" fill="${big ? c('--accent-ink') : c('--muted')}">${l.data.v} verses</text>` : '');
+          svg.appendChild(g);
+          return { l, g };
+        });
+        let px = 0, py = 0, vx = 0, vy = 0, zoom = 1, raf = 0;
+        const lim = Math.max(...leaves.map(l => Math.hypot(l.wx, l.wy))) * 0.62; // keep the view's centre inside the cluster
+        const clamp = () => { const d = Math.hypot(px, py); if (d > lim) { px *= lim / d; py *= lim / d; vx *= 0.5; vy *= 0.5; } };
+        let base = 1;
+        const render = () => {
+          const w = box.clientWidth, h = box.clientHeight, cx = w / 2, cy = h / 2, R = Math.max(w, h) * 0.5;
+          base = Math.min(w, h) / 820;
+          svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+          for (const { l, g } of nodes) {
+            const x = (l.wx + px) * zoom * base, y = (l.wy + py) * zoom * base, d = Math.hypot(x, y) || 1e-6;
+            const t = Math.tanh(d / R), k = (R * t) / d, sc = zoom * base * Math.max(0, 1 - 0.8 * Math.pow(t, 3));
+            const onScreen = sc * l.r > 2.5;
+            g.style.display = onScreen ? '' : 'none';
+            if (!onScreen) continue;
+            g.setAttribute('transform', `translate(${(cx + x * k).toFixed(1)} ${(cy + y * k).toFixed(1)}) scale(${sc.toFixed(3)})`);
+            g.classList.toggle('nolabel', l.r * sc < 14);
+            g.classList.toggle('nocount', l.r * sc < 28);
+          }
+        };
+        const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const glide = () => {
+          cancelAnimationFrame(raf);
+          if (reduce) return;
+          const step = () => {
+            vx *= 0.93; vy *= 0.93; px += vx; py += vy; clamp(); render();
+            if (Math.abs(vx) + Math.abs(vy) > 0.05) raf = requestAnimationFrame(step);
+          };
+          raf = requestAnimationFrame(step);
+        };
+        let down = null, moved = 0, last = null;
+        box.addEventListener('pointerdown', e => { if (e.button !== 0) return; cancelAnimationFrame(raf); down = { x: e.clientX, y: e.clientY }; last = { x: e.clientX, y: e.clientY, t: performance.now() }; moved = 0; box.setPointerCapture(e.pointerId); box.classList.add('dragging'); });
+        box.addEventListener('pointermove', e => {
+          if (!down) return;
+          const dx = e.clientX - last.x, dy = e.clientY - last.y, now = performance.now(), dt = Math.max(1, now - last.t);
+          moved += Math.abs(dx) + Math.abs(dy);
+          px += dx / (zoom * base); py += dy / (zoom * base); clamp();
+          vx = (dx / (zoom * base)) * (16 / dt); vy = (dy / (zoom * base)) * (16 / dt);
+          last = { x: e.clientX, y: e.clientY, t: now }; render();
+        });
+        const end = e => {
+          if (!down) return;
+          box.classList.remove('dragging');
+          if (moved < 6) {
+            const hit = document.elementsFromPoint(e.clientX, e.clientY).map(el => el.closest && el.closest('.bub')).find(Boolean);
+            if (hit) { location.href = `${BASE}topic/${hit.dataset.slug}/`; return; }
+          } else if (performance.now() - last.t < 80) glide();
+          down = null;
+        };
+        box.addEventListener('pointerup', end); box.addEventListener('pointercancel', () => { down = null; box.classList.remove('dragging'); });
+        box.addEventListener('wheel', e => {
+          e.preventDefault(); cancelAnimationFrame(raf);
+          if (e.ctrlKey) { zoom = Math.max(0.6, Math.min(2.2, zoom * Math.exp(-e.deltaY / 300))); }
+          else { px -= e.deltaX / (zoom * base); py -= e.deltaY / (zoom * base); clamp(); }
+          render();
+        }, { passive: false });
+        box.tabIndex = 0;
+        box.addEventListener('keydown', e => {
+          const m = { ArrowLeft: [60, 0], ArrowRight: [-60, 0], ArrowUp: [0, 60], ArrowDown: [0, -60] }[e.key];
+          if (m) { e.preventDefault(); px += m[0]; py += m[1]; clamp(); render(); }
+          else if (e.key === '+' || e.key === '=') { zoom = Math.min(2.2, zoom * 1.15); render(); }
+          else if (e.key === '-') { zoom = Math.max(0.6, zoom / 1.15); render(); }
+          else if (e.key === 'Enter') {
+            const w = box.clientWidth, h = box.clientHeight;
+            const hit = document.elementsFromPoint(box.getBoundingClientRect().left + w / 2, box.getBoundingClientRect().top + h / 2).map(el => el.closest && el.closest('.bub')).find(Boolean);
+            if (hit) location.href = `${BASE}topic/${hit.dataset.slug}/`;
+          }
+        });
+        if (window.ResizeObserver) new ResizeObserver(render).observe(box);
+        render();
       };
       window.__qfBubbles = draw;
       if (window.d3) draw(); else window.addEventListener('load', draw, { once: true });

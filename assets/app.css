@@ -211,3 +211,13 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
 .fl-head .c-n { color: inherit; font: inherit }
 .basmala { grid-column: 1 / -1; margin: 10px 0 0; text-align: center; direction: rtl; font: 400 1.7rem/1.8 var(--arabic); color: var(--accent) }
+/* topics: Apple Watch style field */
+.bubbles { position: relative; width: 100%; max-width: none; height: min(74vh, 780px); min-height: 420px; margin: 0 0 18px; overflow: hidden; border-radius: 18px; border: 1px solid var(--line); background: radial-gradient(circle at 50% 50%, var(--surface), var(--bg) 75%); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; outline: none }
+.bubbles:focus-visible { box-shadow: 0 0 0 2px var(--focus) }
+.bubbles.dragging { cursor: grabbing }
+.bubbles svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block }
+.bubbles .bub { cursor: pointer }
+.bubbles .bub text { font-family: var(--body); pointer-events: none }
+.bubbles .bub.nolabel text, .bubbles .bub.nocount .bc { display: none }
+.bubbles .bub:hover circle { filter: brightness(1.08) }
+.bub-hint { position: absolute; left: 0; right: 0; bottom: 10px; margin: 0; text-align: center; font-size: .78rem; color: var(--muted); pointer-events: none; z-index: 1 }
