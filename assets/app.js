@@ -128,7 +128,8 @@
         const el = speech.queue.shift();
         if (!el) { speech.el = null; if (allBtn) { allBtn.setAttribute('aria-pressed', 'false'); allBtn.innerHTML = `${ICON_SPEAK} Read this flow aloud`; } return; }
         const lang = el.dataset.speak, voice = speech.voice(lang);
-        if (!voice) { speech.notice(el, lang); next(); return; }
+        if (!voice) { speech.notice(el, lang, 'none'); next(); return; }
+        if (speech.silent.has(lang)) { speech.notice(el, lang, 'silent'); next(); return; }
         speech.el = el; el.classList.add('speaking');
         const b = $('.v-speak', el); if (b) { b.innerHTML = ICON_STOP; b.setAttribute('aria-pressed', 'true'); }
         const text = speech.mark(el), words = $$('.w', el);
@@ -145,18 +146,38 @@
             for (const w of words) { if (+w.dataset.i <= at) hit = w; else break; }
             words.forEach(w => w.classList.toggle('w-now', w === hit));
           };
-          u.onend = () => sayPart(k + 1);
-          u.onerror = ev => { if (ev.error !== 'interrupted' && ev.error !== 'canceled') sayPart(k + 1); };
+          /* A voice can be listed and still make no sound: Chrome on macOS lists the Tamil voice "Vani" but races
+             through the words in silence, or never starts. Real speech needs well over 12 ms per character
+             (measured: about 60), so a piece that ends faster, or ends without starting, was not heard. */
+          let t0 = 0;
+          u.onstart = () => { t0 = performance.now(); };
+          u.onend = () => {
+            if (my !== speech.gen) return;
+            if (!t0 || (en - st > 20 && performance.now() - t0 < (en - st) * 12)) { speech.silent.add(lang); speech.notice(el, lang, 'silent'); next(); return; }
+            sayPart(k + 1);
+          };
+          u.onerror = ev => {
+            if (my !== speech.gen || ev.error === 'interrupted' || ev.error === 'canceled') return;
+            speech.notice(el, lang, ev.error === 'not-allowed' ? 'blocked' : 'error', ev.error);
+            if (ev.error === 'not-allowed') speech.stop(); else next();
+          };
           window.speechSynthesis.speak(u);
         };
         sayPart(0);
       };
       next();
     },
-    notice(el, lang) { // once per open flow and language, under the first line that could not be read
-      const box = el.closest('.fl-verses') || el;
+    silent: new Set(), // languages whose voice was found to make no sound in this browser, for this visit
+    notice(el, lang, why, detail) { // once per open flow and language, under the first line that could not be read
+      const box = el.closest('.fl-verses') || el, name = lang === 'ta' ? 'Tamil' : 'English';
       if ($(`.v-nospeak[data-lang="${lang}"]`, box)) return;
-      el.insertAdjacentHTML('beforeend', `<p class="v-nospeak" data-lang="${lang}">This browser has no ${lang === 'ta' ? 'Tamil' : 'English'} voice to read this aloud. Voices can be added in your device's language or speech settings.</p>`);
+      const msg = {
+        none: `This browser has no ${name} voice to read this aloud. Voices can be added in your device's language or speech settings.`,
+        silent: `This browser's ${name} voice made no sound, so ${name} cannot be read aloud here. Chrome on a Mac does this with Tamil; another browser such as Safari may read it.`,
+        blocked: 'The browser did not allow reading aloud just now. Press the speaker again.',
+        error: `Reading aloud stopped: the browser reported "${esc(detail || 'an error')}".`,
+      }[why];
+      el.insertAdjacentHTML('beforeend', `<p class="v-nospeak" data-lang="${lang}" data-why="${why}">${msg}</p>`);
     },
   };
   if ('speechSynthesis' in window) {
@@ -316,7 +337,7 @@
     const itemHTML = x => (Array.isArray(x) ? rowHTML(x) : groupHTML(x));
     function rowHTML(f) {
       return `<li class="fl" id="f-${f[1]}-${f[2]}" data-s="${f[1]}" data-a="${f[2]}" data-b="${f[3]}" data-slug="${f[5]}"><span class="c-no">${f[0]}</span>` +
-        `<div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">${esc(f[4])}</button>${f[6] ? `<p class="fl-desc">${esc(f[6])}</p>` : ''}</div>` +
+        `<div class="fl-main"><button class="fl-open" type="button" aria-expanded="false"><span class="fl-name">${esc(f[4])}</span></button>${f[6] ? `<p class="fl-desc">${esc(f[6])}</p>` : ''}</div>` +
         `<span class="c-rg">${rng(f[1], f[2], f[3])}</span><a class="c-surah" href="${BASE}surah/${f[1]}/">${esc(surahName(f[1]))}</a><span class="c-n">${f[3] - f[2] + 1}</span><div class="fl-verses" hidden></div></li>`;
     }
 
@@ -369,6 +390,7 @@
       const q = fq.value.trim(), s = +fs.value || 0, t = [...sel];
       store.set('qf-filter', { s: fs.value }); store.set('qf-topics', t);
       awayFromEnd(); moreEl.hidden = true;
+      table.classList.toggle('grouped', fg.checked); // under a topic heading the rows don't repeat the topic's name
       list.innerHTML = skeleton(8); shown = 0; kb = -1;
       const ref = q.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
       if (!q && !t.length && sort.key === 'no' && sort.dir === 1 && !fg.checked) {

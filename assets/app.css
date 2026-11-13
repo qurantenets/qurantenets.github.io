@@ -286,3 +286,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .v-readall[aria-pressed="true"] { color: var(--fg) }
 .v-nospeak { margin: 6px 0 0; font-size: .82rem; color: var(--muted); font-style: italic }
 @media (prefers-reduced-motion: no-preference) { .w-now { transition: background-color .08s } }
+/* Grouped: the heading already names the topic, so each row hides it (still read out by screen readers) and
+   keeps only the open arrow. */
+.grouped .fl .fl-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap }
+.grouped .fl .fl-open::after { margin-left: 0 }
