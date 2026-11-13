@@ -54,9 +54,10 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 /* tabs and filters */
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-top: 18px; overflow-x: auto }
-.tabs button { all: unset; cursor: pointer; padding: 10px 14px 11px; font: 500 .98rem var(--body); color: var(--muted); border-bottom: 2px solid transparent }
-.tabs button[aria-selected="true"] { color: var(--fg); border-color: var(--accent) }
-.tabs button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px }
+.tabs a { padding: 10px 14px 11px; font: 500 .98rem var(--body); color: var(--muted); text-decoration: none; border-bottom: 2px solid transparent }
+.tabs a:hover { color: var(--fg) }
+.tabs a[aria-current="page"] { color: var(--fg); border-color: var(--accent) }
+.tabs a:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px }
 .panel { padding-block: 20px 48px }
 .panel .filters + .filters { margin-top: 8px }
 .flow-table { margin-top: 10px }
@@ -327,7 +328,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 /* The topic popup. A centred card on large screens, a sheet from the bottom on phones. */
 html.modal-open { overflow: hidden }
-.tp { width: min(800px, calc(100% - 32px)); max-height: min(86vh, 920px); padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--bg); color: var(--fg); box-shadow: 0 24px 70px rgba(0, 0, 0, .28); overflow: hidden }
+.tp { width: min(960px, calc(100% - 32px)); max-height: min(86vh, 920px); padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--bg); color: var(--fg); box-shadow: 0 24px 70px rgba(0, 0, 0, .28); overflow: hidden }
 .tp[open] { display: flex; flex-direction: column }
 .tp::backdrop { background: rgba(8, 14, 11, .5) }
 .tp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 14px; border-bottom: 1px solid var(--line); background: var(--surface) }
@@ -371,3 +372,20 @@ html.modal-open { overflow: hidden }
 .f-groupby { flex: 0 1 220px }
 /* Grouped by surah: the surah column and its sort button step aside. */
 .no-surah .fl-head [data-sort="surah"] { display: none }
+
+/* Popup actions: read aloud, open all, group by surah, see all. */
+.tp-acts { align-items: center }
+.tp-read { display: inline-flex; align-items: center; gap: 6px }
+.tp-read[aria-pressed="true"] { color: var(--fg) }
+.tp-read:disabled { opacity: .6; cursor: progress }
+.tp-check { display: inline-flex; align-items: center; gap: 6px; font: 500 .84rem var(--body); color: var(--muted); cursor: pointer }
+.tp-check input { accent-color: var(--accent) }
+/* The popup's rows follow the popup's own width, not the screen's: below 640px of popup they take the compact
+   layout (range on the right, surah under the description). */
+.tp-table { container: tp / inline-size }
+@container tp (max-width: 640px) {
+  .tp-table .fl, .tp-table.no-surah .fl, .tp-table.hide-count .fl { grid-template-columns: 2.4rem minmax(0, 1fr) auto; padding: 10px 12px }
+  .tp-table .c-surah { grid-column: 2; grid-row: 2; font-size: .82rem }
+  .tp-table .c-rg { grid-column: 3; grid-row: 1 }
+  .tp-table .c-n { display: none }
+}

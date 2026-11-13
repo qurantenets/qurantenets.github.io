@@ -115,7 +115,7 @@
       try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
       if (speech.el) speech.unmark(speech.el);
       speech.el = null;
-      $$('[data-read-all][aria-pressed="true"]').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.innerHTML = `${ICON_SPEAK} Read this flow aloud`; });
+      $$('[data-read-label][aria-pressed="true"]').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.innerHTML = `${ICON_SPEAK} ${b.dataset.readLabel}`; });
     },
     say(lines, allBtn) { // read lines (verse elements) one after another
       speech.stop();
@@ -126,7 +126,7 @@
         if (my !== speech.gen) return;
         if (speech.el) speech.unmark(speech.el);
         const el = speech.queue.shift();
-        if (!el) { speech.el = null; if (allBtn) { allBtn.setAttribute('aria-pressed', 'false'); allBtn.innerHTML = `${ICON_SPEAK} Read this flow aloud`; } return; }
+        if (!el) { speech.el = null; if (allBtn) { allBtn.setAttribute('aria-pressed', 'false'); allBtn.innerHTML = `${ICON_SPEAK} ${allBtn.dataset.readLabel}`; } return; }
         const lang = el.dataset.speak, voice = speech.voice(lang);
         if (!voice) { speech.notice(el, lang, 'none'); next(); return; }
         if (speech.silent.has(lang)) { speech.notice(el, lang, 'silent'); next(); return; }
@@ -209,7 +209,7 @@
       }
       const q = `https://quran.com/${s}/${a}` + (b !== a ? `-${b}` : '');
       const nm = $('.fl-open', li).textContent;
-      const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<button type="button" class="v-readall" data-read-all>${ICON_SPEAK} Read this flow aloud</button>` : '';
+      const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<button type="button" class="v-readall" data-read-all data-read-label="Read this flow aloud">${ICON_SPEAK} Read this flow aloud</button>` : '';
       html += `<div class="v-links">${readAll}<a href="${q}" rel="noopener">Listen and read on quran.com</a><a href="${BASE}surah/${s}/#f-${s}-${a}">Link to this flow</a>${li.dataset.slug ? `<a href="${BASE}topic/${li.dataset.slug}/">Every flow named ${esc(nm)}</a>` : ''}</div>`;
       if (box.contains(speech.el)) speech.stop();
       box.innerHTML = html;
@@ -222,7 +222,8 @@
     const willOpen = open !== undefined ? open : box.hidden;
     if (!willOpen && box.contains(speech.el)) speech.stop(); // closing a flow stops reading it
     box.hidden = !willOpen; li.classList.toggle('open', willOpen); btn.setAttribute('aria-expanded', String(willOpen));
-    if (willOpen) { renderVerses(li); track('open_flow', { surah: li.dataset.s, start: li.dataset.a }); }
+    if (willOpen) { const p = renderVerses(li); track('open_flow', { surah: li.dataset.s, start: li.dataset.a }); return p; }
+    return Promise.resolve();
   }
   document.addEventListener('click', e => {
     // The whole row opens its verses, as on the old site; links, the open verses and text selection are left alone.
@@ -307,15 +308,15 @@
   if (document.body.dataset.kind === 'home') home();
 
   function home() {
-    const tabs = $$('.tabs [data-view]');
+    /* Topics is the home page (/); Flows (/flows/) and Surahs (/surahs/) are their own pages built from the same
+       template, and the page says which view it is. Links from before the split (/#flows, /#surahs) move on. */
+    const VIEWS = ['flows', 'topics', 'surahs'], VIEW = (($('.views') || {}).dataset || {}).view || 'topics';
+    const old = location.hash.slice(1);
+    if (VIEWS.includes(old) && old !== VIEW) { location.replace(BASE + (old === 'topics' ? '' : `${old}/`)); return; }
     const show = view => {
-      if (!['flows', 'topics', 'surahs'].includes(view)) view = 'flows';
-      tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.view === view)));
-      ['flows', 'topics', 'surahs'].forEach(v => { $('#' + v).hidden = v !== view; });
+      VIEWS.forEach(v => { $('#' + v).hidden = v !== view; });
       if (view === 'topics') drawTopics();
     };
-    tabs.forEach(t => t.addEventListener('click', () => { history.replaceState(null, '', '#' + t.dataset.view); show(t.dataset.view); }));
-    window.addEventListener('hashchange', () => show(location.hash.slice(1)));
 
     const list = $('#all-flows'), table = $('#flow-table'), fq = $('#f-q'), fs = $('#f-surah'), fchips = $('#f-chips'), fac = $('#f-ac'), fd = $('#f-desc'), fc = $('#f-count'), fg = $('#f-group'), total = $('#f-total');
     fd.checked = store.get('qf-desc', false); fc.checked = store.get('qf-count', true);
@@ -438,16 +439,17 @@
     metaP.then(m => {
       meta = m;
       fs.innerHTML = '<option value="">All surahs</option>' + m.surahs.map(s => {
-        const sp = m.span[String(s[0])], n = sp ? sp[1] - sp[0] + 1 : 0;
-        return `<option value="${s[0]}"${n ? '' : ' disabled'}>${s[0]}. ${esc(s[1])} (${n})</option>`;
+        // Distinct topics and flows, both named: a bare "(105)" read as topics when it counted flows.
+        const sp = m.span[String(s[0])], n = sp ? sp[1] - sp[0] + 1 : 0, k = (m.stopics || {})[String(s[0])] || 0;
+        return `<option value="${s[0]}"${n ? '' : ' disabled'}>${s[0]}. ${esc(s[1])} · ${k} topic${k === 1 ? '' : 's'} · ${n} flow${n === 1 ? '' : 's'}</option>`;
       }).join('');
       const st = store.get('qf-filter', {});
       if (st.s && fs.querySelector(`option[value="${st.s}"]:not([disabled])`)) fs.value = st.s;
       m.topics.forEach(t => topicBy.set(t[0], t));
       store.get('qf-topics', []).forEach(x => { if (topicBy.has(x)) sel.add(x); }); if (st.t && topicBy.has(st.t)) sel.add(st.t);
       drawChips();
-      show(location.hash.slice(1));
-      apply();
+      show(VIEW);
+      if (VIEW === 'flows') apply(); // the list is only fetched on the Flows page
     }).catch(e => { list.innerHTML = `<li class="empty">The flows could not be loaded (${esc(e.message)}). Reload the page to try again.</li>`; });
 
     /* Topic chips: pick several topics; the list shows flows under any of them. Typed text that is not
@@ -579,21 +581,35 @@
        read-aloud works inside, and the footer steps to the previous or next topic in the current order. The
        browser's Back button closes it, as people expect on a phone. */
     const pop = $('#topic-pop'), popList = $('#tp-list'), LOAD = Math.random().toString(36).slice(2);
-    let popOpener = null;
+    const popGroup = $('#tp-group'), popRead = $('#tp-read');
+    popGroup.checked = store.get('qf-popgroup', false);
+    if ('speechSynthesis' in window) { popRead.innerHTML = `${ICON_SPEAK} Read aloud`; popRead.hidden = false; }
+    let popOpener = null, popCur = null;
     async function openTopic(slug, surah = 0) {
       const t = topicBy.get(slug); if (!t) return;
       let data; try { data = await index(); } catch (e) { location.href = `${BASE}topic/${slug}/`; return; }
       const all = data.flows.filter(f => f[5] === slug), flows = surah ? all.filter(f => f[1] === surah) : all;
       const v = flows.reduce((n, f) => n + f[3] - f[2] + 1, 0);
       if (pop.contains(speech.el)) speech.stop();
+      popCur = { slug, surah };
       $('#tp-title').textContent = surah ? `${t[1]} in ${surahName(surah)}` : t[1];
-      $('#tp-meta').textContent = `${flows.length} flow${flows.length === 1 ? '' : 's'} · ${v} verse${v === 1 ? '' : 's'}`;
+      $('#tp-meta').textContent = `${flows.length} flow${flows.length === 1 ? '' : 's'} · ${v} verse${v === 1 ? '' : 's'}` + (surah ? '' : ` · ${new Set(all.map(f => f[1])).size} surahs`);
       const allBtn = $('#tp-all');
       allBtn.hidden = !surah || all.length === flows.length;
-      if (surah) { allBtn.textContent = `All ${all.length} flows on ${t[1]} in the Quran`; allBtn.onclick = () => openTopic(slug, 0); }
+      if (surah) { allBtn.textContent = `See all ${all.length} flows on ${t[1]} in the Quran`; allBtn.onclick = () => openTopic(slug, 0); }
       $('#tp-page').href = `${BASE}topic/${slug}/`;
-      $('.tp-table', pop).classList.toggle('hide-desc', false);
-      popList.innerHTML = flows.map(f => rowHTML(f).replace(/ id="f-[^"]+"/, '')).join(''); // the list below may hold the same rows
+      const tbl = $('.tp-table', pop), grouped = !surah && popGroup.checked;
+      tbl.classList.toggle('hide-desc', false);
+      tbl.classList.toggle('no-surah', grouped || !!surah); // one surah, or a surah heading, names it already
+      popGroup.closest('label').hidden = !!surah;
+      // Grouped by surah: a heading per surah (its flows and verses on this topic), flows under it in reading order.
+      let items = flows;
+      if (grouped) {
+        const gs = new Map();
+        for (const f of flows) { if (!gs.has(f[1])) gs.set(f[1], { surah: f[1], name: surahName(f[1]), n: 0, v: 0, flows: [] }); const g = gs.get(f[1]); g.n++; g.v += f[3] - f[2] + 1; g.flows.push(f); }
+        items = [...gs.values()].flatMap(g => [g, ...g.flows]);
+      }
+      popList.innerHTML = items.map(x => (Array.isArray(x) ? rowHTML(x).replace(/ id="f-[^"]+"/, '') : groupHTML(x))).join(''); // the list below may hold the same rows
       const seq = surah ? order((await loadSurahTopics()).get(surah) || []) : allTopics(), i = seq.findIndex(x => x.slug === slug);
       $$('.tp-nav', pop).forEach(b => {
         const n = seq[i + +b.dataset.dir];
@@ -612,6 +628,18 @@
     const syncOpenAll = () => { const rows = $$('.fl', popList); openAllBtn.textContent = rows.length && rows.every(li => li.classList.contains('open')) ? 'Close all verses' : 'Open all verses'; };
     openAllBtn.addEventListener('click', () => { const rows = $$('.fl', popList), open = !rows.every(li => li.classList.contains('open')); rows.forEach(li => { if (li.classList.contains('open') !== open) toggle(li, open); }); syncOpenAll(); });
     popList.addEventListener('click', () => setTimeout(syncOpenAll)); // a row opened or closed by hand
+    popGroup.addEventListener('change', () => { store.set('qf-popgroup', popGroup.checked); if (popCur) openTopic(popCur.slug, popCur.surah); });
+    // Read aloud: every passage in the popup, in order; their verses are opened first so there is something to read.
+    if (popRead) popRead.addEventListener('click', async () => {
+      if (popRead.getAttribute('aria-pressed') === 'true') { speech.stop(); return; }
+      popRead.disabled = true;
+      try {
+        await Promise.all($$('.fl', popList).map(li => (!li.classList.contains('open') ? toggle(li, true) : !$('[data-speak]', li) ? renderVerses(li) : null)));
+      } finally { popRead.disabled = false; }
+      syncOpenAll();
+      const lines = $$('[data-speak]', popList);
+      if (lines.length) speech.say(lines, popRead);
+    });
     function finishClose() {
       if (pop.contains(speech.el)) speech.stop();
       if (pop.open) pop.close();
@@ -631,6 +659,8 @@
       if (chip) { slug = chip.dataset.topic; surah = +chip.dataset.surah || 0; }
       else if (a && !a.hasAttribute('data-nav')) { const m = a.getAttribute('href').match(/\/topic\/([^/]+)\/$/); if (m) slug = decodeURIComponent(m[1]); }
       if (!slug || !topicBy.has(slug)) return;
+      // From the Flows tab with a surah chosen, the popup keeps to that surah (a button inside widens it).
+      if (!surah && !pop.contains(e.target) && e.target.closest('#flows') && +fs.value) surah = +fs.value;
       e.preventDefault();
       if (!$('#search').hidden) $('#search').hidden = true;
       openTopic(slug, surah);
