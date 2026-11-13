@@ -494,24 +494,32 @@
       }
     });
 
-    /* ---------- topics: the list (by verses or A-Z), by surah, and the topic popup ---------- */
+    /* ---------- topics: the list, by surah, and the topic popup ---------- */
+    /* Sorts: most verses, fewest verses, A-Z, or reading order (where a topic first appears: in the Quran for the
+       whole list, in that surah for the By surah view). */
     let tsort = store.get('qf-tsort', 'v'), tview = store.get('qf-tview', 'all');
+    if (!['v', 'vasc', 'az', 'read'].includes(tsort)) tsort = 'v';
     const byName = (a, b) => a.name.localeCompare(b.name);
-    const order = arr => arr.slice().sort(tsort === 'az' ? byName : (a, b) => b.v - a.v || byName(a, b));
-    const allTopics = () => order(meta.topics.map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3] })));
-    let surahTopics = null; // surah -> [{slug, name, n, v}], built from the search index on first use
+    const SORTS = { v: (a, b) => b.v - a.v || byName(a, b), vasc: (a, b) => a.v - b.v || byName(a, b), az: byName, read: (a, b) => a.first - b.first };
+    const order = arr => arr.slice().sort(SORTS[tsort]);
+    let firstNo = null; // topic -> number of its first flow in the Quran, from the search index
+    const allTopics = () => order(meta.topics.map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3], first: firstNo ? firstNo.get(t[0]) : 0 })));
+    let surahTopics = null; // surah -> [{slug, name, n, v, first}], built from the search index on first use
     async function loadSurahTopics() {
       if (surahTopics) return surahTopics;
-      const data = await index(), per = new Map();
-      for (const f of data.flows) {
+      const data = await index(), per = new Map(), fn = new Map();
+      for (const f of data.flows) { // the index is in reading order, so a topic's first sight is its first flow
+        if (!fn.has(f[5])) fn.set(f[5], f[0]);
         if (!per.has(f[1])) per.set(f[1], new Map());
-        const m = per.get(f[1]); if (!m.has(f[5])) m.set(f[5], { slug: f[5], name: f[4], n: 0, v: 0 });
+        const m = per.get(f[1]); if (!m.has(f[5])) m.set(f[5], { slug: f[5], name: f[4], n: 0, v: 0, first: f[0] });
         const t = m.get(f[5]); t.n++; t.v += f[3] - f[2] + 1;
       }
+      firstNo = fn;
       surahTopics = new Map([...per].map(([s, m]) => [s, [...m.values()]]));
       return surahTopics;
     }
-    function drawTopicList() {
+    async function drawTopicList() {
+      if (tsort === 'read' && !firstNo) { try { await loadSurahTopics(); } catch (e) { /* keeps the list in its last order */ } }
       const ts = allTopics();
       $('#topic-list').innerHTML = ts.map(t => `<li><a href="${BASE}topic/${t.slug}/" data-topic="${t.slug}">${esc(t.name)}</a><span>${t.v}</span></li>`).join('');
       $('#tl-count').textContent = `${ts.length} topics`;
@@ -539,12 +547,12 @@
     }
     function drawTopicsView() {
       $$('[data-tview]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tview === tview)));
-      $$('[data-tsort]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tsort === tsort)));
+      $('#tl-sort').value = tsort;
       $('#topic-list').hidden = tview !== 'all'; $('#by-surah').hidden = tview !== 'surah';
       if (tview === 'surah') drawBySurah(); else drawTopicList();
     }
     $$('[data-tview]').forEach(b => b.addEventListener('click', () => { tview = b.dataset.tview; store.set('qf-tview', tview); drawTopicsView(); }));
-    $$('[data-tsort]').forEach(b => b.addEventListener('click', () => { tsort = b.dataset.tsort; store.set('qf-tsort', tsort); drawTopicsView(); }));
+    $('#tl-sort').addEventListener('change', e => { tsort = e.target.value; store.set('qf-tsort', tsort); drawTopicsView(); });
 
     /* The popup: a topic's flows (or its flows in one surah) without leaving the page. Rows open their verses,
        read-aloud works inside, and the footer steps to the previous or next topic in the current order. The
@@ -576,7 +584,13 @@
       else history.replaceState({ qfTopic: slug, k: LOAD }, '');
       $('.tp-body', pop).scrollTop = 0;
       if (flows.length <= 3) $$('.fl', popList).forEach(li => toggle(li, true)); // a few passages: show their verses straight away
+      syncOpenAll();
     }
+    // "Open all verses" / "Close all verses": every passage of the topic opened at once, inside the popup.
+    const openAllBtn = $('#tp-openall');
+    const syncOpenAll = () => { const rows = $$('.fl', popList); openAllBtn.textContent = rows.length && rows.every(li => li.classList.contains('open')) ? 'Close all verses' : 'Open all verses'; };
+    openAllBtn.addEventListener('click', () => { const rows = $$('.fl', popList), open = !rows.every(li => li.classList.contains('open')); rows.forEach(li => { if (li.classList.contains('open') !== open) toggle(li, open); }); syncOpenAll(); });
+    popList.addEventListener('click', () => setTimeout(syncOpenAll)); // a row opened or closed by hand
     function finishClose() {
       if (pop.contains(speech.el)) speech.stop();
       if (pop.open) pop.close();

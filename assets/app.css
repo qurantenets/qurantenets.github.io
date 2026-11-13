@@ -355,3 +355,8 @@ html.modal-open { overflow: hidden }
 }
 /* A grouped row whose flow has no description shows its name after all (nothing else would say what it is). */
 .grouped .fl-main:not(:has(.fl-desc)) .fl-name { position: static; width: auto; height: auto; clip: auto; clip-path: none; white-space: normal }
+/* Topics sort: one compact dropdown (four choices do not fit as pills on a phone). */
+.tl-sort { display: inline-flex; align-items: center; gap: 8px; font-size: .86rem; color: var(--muted) }
+.tl-sort select { font: 500 .86rem var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px }
+.tl-sort select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.tp-acts { display: flex; flex-wrap: wrap; gap: 4px 16px }
