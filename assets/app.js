@@ -299,7 +299,7 @@
   /* ---------- global keys ---------- */
   document.addEventListener('keydown', e => {
     const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
-    if (e.key === '/' && !typing && dlg.hidden) { e.preventDefault(); openSearch(); }
+    if (e.key === '/' && !typing && dlg.hidden && !document.querySelector('dialog[open]')) { e.preventDefault(); openSearch(); }
     else if (e.key === 'Escape' && !dlg.hidden) { closeSearch(); }
   });
 
@@ -475,7 +475,7 @@
     }));
 
     document.addEventListener('keydown', e => {
-      if ($('#flows').hidden || !dlg.hidden) return;
+      if ($('#flows').hidden || !dlg.hidden || $('#topic-pop').open) return;
       const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
       if (e.key === 'Escape') { if (!fac.hidden) { fac.hidden = true; return; } fq.value = ''; fs.value = ''; sel.clear(); drawChips(); sort = { key: 'no', dir: 1 }; $$('[data-sort]', table).forEach(x => x.setAttribute('aria-sort', x.dataset.sort === 'no' ? 'ascending' : 'none')); if (typing) document.activeElement.blur(); apply(); return; }
       if (typing) return;
@@ -494,11 +494,118 @@
       }
     });
 
+    /* ---------- topics: the list (by verses or A-Z), by surah, and the topic popup ---------- */
+    let tsort = store.get('qf-tsort', 'v'), tview = store.get('qf-tview', 'all');
+    const byName = (a, b) => a.name.localeCompare(b.name);
+    const order = arr => arr.slice().sort(tsort === 'az' ? byName : (a, b) => b.v - a.v || byName(a, b));
+    const allTopics = () => order(meta.topics.map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3] })));
+    let surahTopics = null; // surah -> [{slug, name, n, v}], built from the search index on first use
+    async function loadSurahTopics() {
+      if (surahTopics) return surahTopics;
+      const data = await index(), per = new Map();
+      for (const f of data.flows) {
+        if (!per.has(f[1])) per.set(f[1], new Map());
+        const m = per.get(f[1]); if (!m.has(f[5])) m.set(f[5], { slug: f[5], name: f[4], n: 0, v: 0 });
+        const t = m.get(f[5]); t.n++; t.v += f[3] - f[2] + 1;
+      }
+      surahTopics = new Map([...per].map(([s, m]) => [s, [...m.values()]]));
+      return surahTopics;
+    }
+    function drawTopicList() {
+      const ts = allTopics();
+      $('#topic-list').innerHTML = ts.map(t => `<li><a href="${BASE}topic/${t.slug}/" data-topic="${t.slug}">${esc(t.name)}</a><span>${t.v}</span></li>`).join('');
+      $('#tl-count').textContent = `${ts.length} topics`;
+    }
+    async function drawBySurah() {
+      const box = $('#by-surah');
+      if (!surahTopics) box.innerHTML = '<p class="v-err">Loading the surahs…</p>';
+      let per; try { per = await loadSurahTopics(); } catch (e) { box.innerHTML = `<p class="v-err">The topics could not be loaded (${esc(e.message)}).</p>`; return; }
+      /* Each surah with the topics in it, as chips: the count is that topic's verses in this surah, and the shade
+         says how much of the surah it takes up, so the heavy themes of a surah stand out at a glance. */
+      const jumps = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110].map(n => `<a href="#bs-${n}">${n}</a>`).join('');
+      let html = `<nav class="bs-jump" aria-label="Jump to surah"><span>Jump to</span>${jumps}</nav><p class="bs-key"><i class="w1"></i><i class="w2"></i><i class="w3"></i><i class="w4"></i> darker = more of the surah</p>`;
+      for (let s = 1; s <= 114; s++) {
+        const ts = per.get(s) || [], tot = ts.reduce((n, t) => n + t.v, 0);
+        const chips = order(ts).map(t => { const sh = t.v / (tot || 1), w = sh >= 0.3 ? 4 : sh >= 0.15 ? 3 : sh >= 0.07 ? 2 : 1; return `<li><button type="button" class="tchip w${w}" data-topic="${t.slug}" data-surah="${s}">${esc(t.name)}<span>${t.v}</span></button></li>`; }).join('');
+        html += `<section class="bs" id="bs-${s}"><div class="bs-head"><a class="bs-name" href="${BASE}surah/${s}/"><span class="bs-no">${s}</span>${esc(surahName(s))}</a><span class="bs-meta">${ts.length} topic${ts.length === 1 ? '' : 's'} · ${tot} verses</span></div><ul class="bs-chips">${chips}</ul></section>`;
+      }
+      box.innerHTML = html;
+      $('#tl-count').textContent = '114 surahs';
+      // Jump links scroll without touching the address: on this page "#..." picks the tab.
+      $$('.bs-jump a', box).forEach(a => a.addEventListener('click', e => {
+        e.preventDefault();
+        $(a.getAttribute('href'), box).scrollIntoView({ block: 'start' }); // instant: an index jump can cross the whole page
+      }));
+    }
+    function drawTopicsView() {
+      $$('[data-tview]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tview === tview)));
+      $$('[data-tsort]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tsort === tsort)));
+      $('#topic-list').hidden = tview !== 'all'; $('#by-surah').hidden = tview !== 'surah';
+      if (tview === 'surah') drawBySurah(); else drawTopicList();
+    }
+    $$('[data-tview]').forEach(b => b.addEventListener('click', () => { tview = b.dataset.tview; store.set('qf-tview', tview); drawTopicsView(); }));
+    $$('[data-tsort]').forEach(b => b.addEventListener('click', () => { tsort = b.dataset.tsort; store.set('qf-tsort', tsort); drawTopicsView(); }));
+
+    /* The popup: a topic's flows (or its flows in one surah) without leaving the page. Rows open their verses,
+       read-aloud works inside, and the footer steps to the previous or next topic in the current order. The
+       browser's Back button closes it, as people expect on a phone. */
+    const pop = $('#topic-pop'), popList = $('#tp-list'), LOAD = Math.random().toString(36).slice(2);
+    let popOpener = null;
+    async function openTopic(slug, surah = 0) {
+      const t = topicBy.get(slug); if (!t) return;
+      let data; try { data = await index(); } catch (e) { location.href = `${BASE}topic/${slug}/`; return; }
+      const all = data.flows.filter(f => f[5] === slug), flows = surah ? all.filter(f => f[1] === surah) : all;
+      const v = flows.reduce((n, f) => n + f[3] - f[2] + 1, 0);
+      if (pop.contains(speech.el)) speech.stop();
+      $('#tp-title').textContent = surah ? `${t[1]} in ${surahName(surah)}` : t[1];
+      $('#tp-meta').textContent = `${flows.length} flow${flows.length === 1 ? '' : 's'} · ${v} verse${v === 1 ? '' : 's'}`;
+      const allBtn = $('#tp-all');
+      allBtn.hidden = !surah || all.length === flows.length;
+      if (surah) { allBtn.textContent = `All ${all.length} flows on ${t[1]} in the Quran`; allBtn.onclick = () => openTopic(slug, 0); }
+      $('#tp-page').href = `${BASE}topic/${slug}/`;
+      $('.tp-table', pop).classList.toggle('hide-desc', false);
+      popList.innerHTML = flows.map(f => rowHTML(f).replace(/ id="f-[^"]+"/, '')).join(''); // the list below may hold the same rows
+      const seq = surah ? order((await loadSurahTopics()).get(surah) || []) : allTopics(), i = seq.findIndex(x => x.slug === slug);
+      $$('.tp-nav', pop).forEach(b => {
+        const n = seq[i + +b.dataset.dir];
+        b.hidden = !n; if (!n) return;
+        b.textContent = +b.dataset.dir < 0 ? `‹ ${n.name}` : `${n.name} ›`;
+        b.onclick = () => openTopic(n.slug, surah);
+      });
+      if (!pop.open) { popOpener = document.activeElement; pop.showModal(); document.documentElement.classList.add('modal-open'); history.pushState({ qfTopic: slug, k: LOAD }, ''); }
+      else history.replaceState({ qfTopic: slug, k: LOAD }, '');
+      $('.tp-body', pop).scrollTop = 0;
+      if (flows.length <= 3) $$('.fl', popList).forEach(li => toggle(li, true)); // a few passages: show their verses straight away
+    }
+    function finishClose() {
+      if (pop.contains(speech.el)) speech.stop();
+      if (pop.open) pop.close();
+      document.documentElement.classList.remove('modal-open');
+      if (popOpener && document.contains(popOpener)) popOpener.focus({ preventScroll: true });
+    }
+    const closeTopic = () => { if (history.state && history.state.k === LOAD) history.back(); else finishClose(); };
+    window.addEventListener('popstate', () => { if (pop.open && !(history.state && history.state.k === LOAD)) finishClose(); });
+    pop.addEventListener('cancel', e => { e.preventDefault(); closeTopic(); });
+    pop.addEventListener('click', e => { if (e.target === pop) closeTopic(); }); // the dimmed area around it
+    $('.tp-close', pop).addEventListener('click', closeTopic);
+    // On this page a topic opens in the popup: list, chips, bubbles, group headings, search results, verse links.
+    document.addEventListener('click', e => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || !meta) return;
+      const chip = e.target.closest('button[data-topic]'), a = e.target.closest('a[href]');
+      let slug = null, surah = 0;
+      if (chip) { slug = chip.dataset.topic; surah = +chip.dataset.surah || 0; }
+      else if (a && !a.hasAttribute('data-nav')) { const m = a.getAttribute('href').match(/\/topic\/([^/]+)\/$/); if (m) slug = decodeURIComponent(m[1]); }
+      if (!slug || !topicBy.has(slug)) return;
+      e.preventDefault();
+      if (!$('#search').hidden) $('#search').hidden = true;
+      openTopic(slug, surah);
+    });
+
     let drawn = false;
     function drawTopics() {
       if (!meta) { metaP.then(drawTopics); return; }
       const topics = meta.topics.map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3] })).sort((a, b) => b.v - a.v);
-      if (!drawn) { $('#topic-list').innerHTML = topics.map(t => `<li><a href="${BASE}topic/${t.slug}/">${esc(t.name)}</a><span>${t.v}</span></li>`).join(''); drawn = true; }
+      if (!drawn) { drawTopicsView(); drawn = true; }
       const box = $('#bubbles');
       /* Apple Watch style field: one packed layout (biggest topics in the middle, sized by verse count),
          dragged, swiped or scrolled around. Bubbles shrink and bunch up toward the edge (a tanh lens), so the
@@ -624,7 +731,7 @@
         };
         // A topic you can read opens; one that is small or far out comes to the centre, large enough to read.
         const openOrBring = nd => {
-          if (nd.fs * nd.sc >= 12) { location.href = `${BASE}topic/${nd.l.data.slug}/`; return; }
+          if (nd.fs * nd.sc >= 12) { openTopic(nd.l.data.slug); return; }
           const fit = (Math.min(box.clientWidth, box.clientHeight) * 0.42) / (nd.l.r * base); // no bigger than the view
           animateTo(-nd.l.wx, -nd.l.wy, Math.min(fit, Math.max(zoom, 18 / (nd.fs * base))));
         };
