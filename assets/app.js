@@ -71,6 +71,104 @@
     $$('.fl.open').forEach(li => renderVerses(li));
   }));
 
+  /* ---------- reading aloud ----------
+     The browser's own voices (speechSynthesis): nothing to download or host. Only the English and Tamil
+     translations are read; a synthetic voice mispronounces the Quran's Arabic, and the flow's quran.com link
+     gives a real recitation. While a line is read it is marked, and the word being read is highlighted when the
+     voice reports word positions (most built-in voices do; some online voices report none, and then the line
+     alone is marked). Long verses are read in pieces split at punctuation, because some browsers stop a single
+     long utterance after about 15 seconds. */
+  const ICON_SPEAK = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  const ICON_STOP = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>';
+  const speakBtn = (ref, lang) => ('speechSynthesis' in window ? `<button type="button" class="v-speak" data-speak-one aria-label="Read ${ref} aloud in ${lang}" title="Read aloud">${ICON_SPEAK}</button>` : '');
+  const LANG_TAG = { en: 'en', ta: 'ta' };
+  const speech = {
+    el: null, queue: [], gen: 0,
+    voice(lang) {
+      /* Never a novelty or robotic voice (macOS ships "Albert", "Bubbles", "Zarvox"... and the robotic Eloquence
+         set). Then: the voice the reader chose for their own system, a built-in voice (these report word
+         positions, which the highlight needs), and a known natural voice. */
+      const vs = window.speechSynthesis.getVoices().filter(v => v.lang && v.lang.toLowerCase().replace('_', '-').startsWith(LANG_TAG[lang]));
+      const NOVELTY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Kathy|Ralph|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley)\b/i;
+      const fine = vs.filter(v => !NOVELTY.test(v.name)), pool = fine.length ? fine : vs;
+      const score = v => (v.default ? 8 : 0) + (v.localService ? 4 : 0) + (/Samantha|Daniel|Karen|Moira|Tessa|Rishi|Alex|Ava|Allison|Serena|Vani|Aria|Jenny|Guy|Zira|David|Google/i.test(v.name) ? 2 : 0) + (/natural|neural|enhanced|premium/i.test(v.name) ? 1 : 0);
+      return pool.slice().sort((a, b) => score(b) - score(a))[0] || null;
+    },
+    pieces(text) { // [start, end) ranges of at most ~180 characters, cut after punctuation where possible
+      const out = []; let i = 0;
+      while (i < text.length) {
+        let j = Math.min(text.length, i + 180);
+        if (j < text.length) { const cut = Math.max(text.lastIndexOf('. ', j), text.lastIndexOf('; ', j), text.lastIndexOf(', ', j)); if (cut > i + 40) j = cut + 1; else { const sp = text.lastIndexOf(' ', j); if (sp > i) j = sp; } }
+        out.push([i, j]); i = j; while (text[i] === ' ') i++;
+      }
+      return out;
+    },
+    mark(el) { // wrap each word in a span that knows where it starts in the verse text
+      const vt = $('.vt', el), text = vt.textContent;
+      let pos = 0;
+      vt.innerHTML = text.split(/(\s+)/).map(part => { const st = pos; pos += part.length; return /\S/.test(part) ? `<span class="w" data-i="${st}">${esc(part)}</span>` : part; }).join('');
+      return text;
+    },
+    unmark(el) { const vt = $('.vt', el); if (vt) vt.textContent = vt.textContent; el.classList.remove('speaking'); const b = $('.v-speak', el); if (b) { b.innerHTML = ICON_SPEAK; b.setAttribute('aria-pressed', 'false'); } },
+    stop() {
+      speech.gen++; speech.queue = [];
+      try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+      if (speech.el) speech.unmark(speech.el);
+      speech.el = null;
+      $$('[data-read-all][aria-pressed="true"]').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.innerHTML = `${ICON_SPEAK} Read this flow aloud`; });
+    },
+    say(lines, allBtn) { // read lines (verse elements) one after another
+      speech.stop();
+      const my = speech.gen;
+      speech.queue = lines.slice();
+      if (allBtn) { allBtn.setAttribute('aria-pressed', 'true'); allBtn.innerHTML = `${ICON_STOP} Stop reading`; }
+      const next = () => {
+        if (my !== speech.gen) return;
+        if (speech.el) speech.unmark(speech.el);
+        const el = speech.queue.shift();
+        if (!el) { speech.el = null; if (allBtn) { allBtn.setAttribute('aria-pressed', 'false'); allBtn.innerHTML = `${ICON_SPEAK} Read this flow aloud`; } return; }
+        const lang = el.dataset.speak, voice = speech.voice(lang);
+        if (!voice) { speech.notice(el, lang); next(); return; }
+        speech.el = el; el.classList.add('speaking');
+        const b = $('.v-speak', el); if (b) { b.innerHTML = ICON_STOP; b.setAttribute('aria-pressed', 'true'); }
+        const text = speech.mark(el), words = $$('.w', el);
+        el.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        const parts = speech.pieces(text);
+        const sayPart = k => {
+          if (my !== speech.gen) return;
+          if (k >= parts.length) { next(); return; }
+          const [st, en] = parts[k], u = new SpeechSynthesisUtterance(text.slice(st, en));
+          u.voice = voice; u.lang = voice.lang; u.rate = 0.95;
+          u.onboundary = e => {
+            if (my !== speech.gen || (e.name && e.name !== 'word')) return;
+            const at = st + e.charIndex; let hit = null;
+            for (const w of words) { if (+w.dataset.i <= at) hit = w; else break; }
+            words.forEach(w => w.classList.toggle('w-now', w === hit));
+          };
+          u.onend = () => sayPart(k + 1);
+          u.onerror = ev => { if (ev.error !== 'interrupted' && ev.error !== 'canceled') sayPart(k + 1); };
+          window.speechSynthesis.speak(u);
+        };
+        sayPart(0);
+      };
+      next();
+    },
+    notice(el, lang) { // once per open flow and language, under the first line that could not be read
+      const box = el.closest('.fl-verses') || el;
+      if ($(`.v-nospeak[data-lang="${lang}"]`, box)) return;
+      el.insertAdjacentHTML('beforeend', `<p class="v-nospeak" data-lang="${lang}">This browser has no ${lang === 'ta' ? 'Tamil' : 'English'} voice to read this aloud. Voices can be added in your device's language or speech settings.</p>`);
+    },
+  };
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.getVoices(); // voices load in the background in some browsers
+    window.addEventListener('pagehide', () => speech.stop());
+    document.addEventListener('click', e => {
+      const one = e.target.closest('[data-speak-one]'), all = e.target.closest('[data-read-all]');
+      if (one) { const el = one.closest('[data-speak]'); if (speech.el === el) speech.stop(); else speech.say([el]); }
+      else if (all) { if (all.getAttribute('aria-pressed') === 'true') speech.stop(); else speech.say($$('[data-speak]', all.closest('.fl-verses')), all); }
+    });
+  }
+
   /* ---------- opening a flow ---------- */
   async function renderVerses(li) {
     const box = $('.fl-verses', li);
@@ -84,12 +182,15 @@
       for (let v = a; v <= b; v++) {
         html += '<div class="v">';
         if (t.ar) html += `<div class="v-ar" lang="ar">${esc(t.ar[v - 1])}<span class="v-mark" aria-label="verse ${v}">${AR(v)}</span></div>`;
-        if (t.en) html += `<div class="v-en"><sup>${s}:${v}</sup>${esc(t.en[v - 1])}</div>`;
-        if (t.ta) html += `<div class="v-ta" lang="ta"><sup>${s}:${v}</sup>${esc(t.ta[v - 1])}</div>`;
+        if (t.en) html += `<div class="v-en" data-speak="en"><sup>${s}:${v}</sup><span class="vt">${esc(t.en[v - 1])}</span>${speakBtn(`${s}:${v}`, 'English')}</div>`;
+        if (t.ta) html += `<div class="v-ta" lang="ta" data-speak="ta"><sup>${s}:${v}</sup><span class="vt">${esc(t.ta[v - 1])}</span>${speakBtn(`${s}:${v}`, 'Tamil')}</div>`;
         html += '</div>';
       }
       const q = `https://quran.com/${s}/${a}` + (b !== a ? `-${b}` : '');
-      const nm = $('.fl-open', li).textContent; html += `<div class="v-links"><a href="${q}" rel="noopener">Listen and read on quran.com</a><a href="${BASE}surah/${s}/#f-${s}-${a}">Link to this flow</a>${li.dataset.slug ? `<a href="${BASE}topic/${li.dataset.slug}/">Every flow named ${esc(nm)}</a>` : ''}</div>`;
+      const nm = $('.fl-open', li).textContent;
+      const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<button type="button" class="v-readall" data-read-all>${ICON_SPEAK} Read this flow aloud</button>` : '';
+      html += `<div class="v-links">${readAll}<a href="${q}" rel="noopener">Listen and read on quran.com</a><a href="${BASE}surah/${s}/#f-${s}-${a}">Link to this flow</a>${li.dataset.slug ? `<a href="${BASE}topic/${li.dataset.slug}/">Every flow named ${esc(nm)}</a>` : ''}</div>`;
+      if (box.contains(speech.el)) speech.stop();
       box.innerHTML = html;
     } catch (e) {
       box.innerHTML = `<p class="v-err">The verses could not be loaded (${esc(e.message)}). Check your connection and open the flow again.</p>`;
@@ -98,6 +199,7 @@
   function toggle(li, open) {
     const btn = $('.fl-open', li), box = $('.fl-verses', li);
     const willOpen = open !== undefined ? open : box.hidden;
+    if (!willOpen && box.contains(speech.el)) speech.stop(); // closing a flow stops reading it
     box.hidden = !willOpen; li.classList.toggle('open', willOpen); btn.setAttribute('aria-expanded', String(willOpen));
     if (willOpen) { renderVerses(li); track('open_flow', { surah: li.dataset.s, start: li.dataset.a }); }
   }
@@ -194,8 +296,8 @@
     tabs.forEach(t => t.addEventListener('click', () => { history.replaceState(null, '', '#' + t.dataset.view); show(t.dataset.view); }));
     window.addEventListener('hashchange', () => show(location.hash.slice(1)));
 
-    const list = $('#all-flows'), table = $('#flow-table'), fq = $('#f-q'), fs = $('#f-surah'), fchips = $('#f-chips'), fac = $('#f-ac'), fd = $('#f-desc'), fc = $('#f-count'), total = $('#f-total');
-    fd.checked = store.get('qf-desc', false); fc.checked = store.get('qf-count', true);
+    const list = $('#all-flows'), table = $('#flow-table'), fq = $('#f-q'), fs = $('#f-surah'), fchips = $('#f-chips'), fac = $('#f-ac'), fd = $('#f-desc'), fc = $('#f-count'), fg = $('#f-group'), total = $('#f-total');
+    fd.checked = store.get('qf-desc', false); fc.checked = store.get('qf-count', true); fg.checked = store.get('qf-group', false);
     const applyView = () => { table.classList.toggle('hide-desc', !fd.checked); table.classList.toggle('hide-count', !fc.checked); };
     applyView();
     let meta = null, all = null, rows = [], shown = 0, kb = -1, gen = 0, sort = { key: 'no', dir: 1 };
@@ -208,6 +310,10 @@
     const PAGE = 30, DWELL_MS = 2000, AHEAD_PX = 300;
     const moreEl = $('#flows-more');
 
+    // A topic heading, used when "Group by topic" is on: the topic's name (a link to its page) and its totals.
+    const groupHTML = g => `<li class="fl-group" data-slug="${g.slug}"><a href="${BASE}topic/${g.slug}/">${esc(g.name)}</a>` +
+      `<span class="fl-group-n">${g.n} flow${g.n === 1 ? '' : 's'} · ${g.v} verse${g.v === 1 ? '' : 's'}</span></li>`;
+    const itemHTML = x => (Array.isArray(x) ? rowHTML(x) : groupHTML(x));
     function rowHTML(f) {
       return `<li class="fl" id="f-${f[1]}-${f[2]}" data-s="${f[1]}" data-a="${f[2]}" data-b="${f[3]}" data-slug="${f[5]}"><span class="c-no">${f[0]}</span>` +
         `<div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">${esc(f[4])}</button>${f[6] ? `<p class="fl-desc">${esc(f[6])}</p>` : ''}</div>` +
@@ -249,7 +355,7 @@
         const got = await source.next();
         if (my !== gen) return;
         dropSkeleton();
-        if (got && got.length) { list.insertAdjacentHTML('beforeend', got.map(rowHTML).join('')); shown += got.length; }
+        if (got && got.length) { list.insertAdjacentHTML('beforeend', got.map(itemHTML).join('')); shown += got.length; }
         else if (!shown) list.innerHTML = '<li class="empty">No flows match. Clear the search or filters, or press Esc.</li>';
         moreEl.hidden = !source.left();
       } catch (e) { if (my === gen) { dropSkeleton(); list.insertAdjacentHTML('beforeend', `<li class="empty">Could not load more flows (${esc(e.message)}). Scroll again to retry.</li>`); } }
@@ -265,7 +371,7 @@
       awayFromEnd(); moreEl.hidden = true;
       list.innerHTML = skeleton(8); shown = 0; kb = -1;
       const ref = q.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
-      if (!q && !t.length && sort.key === 'no' && sort.dir === 1) {
+      if (!q && !t.length && sort.key === 'no' && sort.dir === 1 && !fg.checked) {
         const sp = s ? meta.span[String(s)] : [0, meta.flows - 1];
         source = sp ? streamSource(sp[0], sp[1]) : arraySource([]);
         const n = s ? (sp ? sp[1] - sp[0] + 1 : 0) : meta.flows;
@@ -277,9 +383,19 @@
         else if (q) { const w = norm(q).split(' '); r = r.filter(f => { const h = norm(`${f[4]} ${f[6]} ${surahName(f[1])}`); return w.every(x => h.includes(x)); }); }
         const key = { no: f => f[0], name: f => f[4].toLowerCase(), count: f => f[3] - f[2] + 1, surah: f => f[1] * 10000 + f[2] }[sort.key];
         r = r.slice().sort((x, y) => { const a = key(x), b = key(y); return (a < b ? -1 : a > b ? 1 : x[0] - y[0]) * sort.dir; });
-        source = arraySource(r);
         const v = r.reduce((n, f) => n + f[3] - f[2] + 1, 0);
-        total.textContent = `${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
+        if (fg.checked) {
+          /* Group by topic: every flow of a topic together under one heading, topics in the order they first
+             appear in the current list (so reading order by default, A-Z when sorted by topic), flows inside a
+             topic keeping the current order. Only what the filters leave is grouped. */
+          const groups = new Map();
+          for (const f of r) { if (!groups.has(f[5])) groups.set(f[5], { slug: f[5], name: f[4], n: 0, v: 0, flows: [] }); const g = groups.get(f[5]); g.n++; g.v += f[3] - f[2] + 1; g.flows.push(f); }
+          source = arraySource([...groups.values()].flatMap(g => [g, ...g.flows]));
+          total.textContent = `${groups.size} topic${groups.size === 1 ? '' : 's'} · ${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
+        } else {
+          source = arraySource(r);
+          total.textContent = `${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
+        }
       }
       await more(my);
     }
@@ -328,6 +444,7 @@
     fs.addEventListener('change', apply);
     fd.addEventListener('change', () => { store.set('qf-desc', fd.checked); applyView(); });
     fc.addEventListener('change', () => { store.set('qf-count', fc.checked); applyView(); });
+    fg.addEventListener('change', () => { store.set('qf-group', fg.checked); apply(); });
     $$('[data-sort]', table).forEach(b => b.addEventListener('click', () => {
       const k = b.dataset.sort;
       sort = sort.key === k ? { key: k, dir: -sort.dir } : { key: k, dir: 1 };
