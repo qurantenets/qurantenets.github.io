@@ -318,7 +318,11 @@
     window.addEventListener('hashchange', () => show(location.hash.slice(1)));
 
     const list = $('#all-flows'), table = $('#flow-table'), fq = $('#f-q'), fs = $('#f-surah'), fchips = $('#f-chips'), fac = $('#f-ac'), fd = $('#f-desc'), fc = $('#f-count'), fg = $('#f-group'), total = $('#f-total');
-    fd.checked = store.get('qf-desc', false); fc.checked = store.get('qf-count', true); fg.checked = store.get('qf-group', false);
+    fd.checked = store.get('qf-desc', false); fc.checked = store.get('qf-count', true);
+    // Group by: none, topic or surah. An older "Group by topic" tick carries over as Topic.
+    fg.value = store.get('qf-groupby', store.get('qf-group', false) === true ? 'topic' : '');
+    if (!['', 'topic', 'surah'].includes(fg.value)) fg.value = '';
+    const fclear = $('#f-clear');
     const applyView = () => { table.classList.toggle('hide-desc', !fd.checked); table.classList.toggle('hide-count', !fc.checked); };
     applyView();
     let meta = null, all = null, rows = [], shown = 0, kb = -1, gen = 0, sort = { key: 'no', dir: 1 };
@@ -332,7 +336,9 @@
     const moreEl = $('#flows-more');
 
     // A topic heading, used when "Group by topic" is on: the topic's name (a link to its page) and its totals.
-    const groupHTML = g => `<li class="fl-group" data-slug="${g.slug}"><a href="${BASE}topic/${g.slug}/">${esc(g.name)}</a>` +
+    const groupHTML = g => (g.surah
+      ? `<li class="fl-group" data-surah="${g.surah}"><a href="${BASE}surah/${g.surah}/"><span class="fl-group-no">${g.surah}</span>${esc(g.name)}</a>`
+      : `<li class="fl-group" data-slug="${g.slug}"><a href="${BASE}topic/${g.slug}/">${esc(g.name)}</a>`) +
       `<span class="fl-group-n">${g.n} flow${g.n === 1 ? '' : 's'} · ${g.v} verse${g.v === 1 ? '' : 's'}</span></li>`;
     const itemHTML = x => (Array.isArray(x) ? rowHTML(x) : groupHTML(x));
     function rowHTML(f) {
@@ -390,10 +396,13 @@
       const q = fq.value.trim(), s = +fs.value || 0, t = [...sel];
       store.set('qf-filter', { s: fs.value }); store.set('qf-topics', t);
       awayFromEnd(); moreEl.hidden = true;
-      table.classList.toggle('grouped', fg.checked); // under a topic heading the rows don't repeat the topic's name
+      const gb = fg.value;
+      table.classList.toggle('grouped', gb === 'topic'); // under a topic heading the rows don't repeat the topic's name
+      table.classList.toggle('no-surah', gb === 'surah'); // nor the surah's under a surah heading
+      fclear.hidden = !(q || s || t.length || sort.key !== 'no' || sort.dir !== 1);
       list.innerHTML = skeleton(8); shown = 0; kb = -1;
       const ref = q.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
-      if (!q && !t.length && sort.key === 'no' && sort.dir === 1 && !fg.checked) {
+      if (!q && !t.length && sort.key === 'no' && sort.dir === 1 && !gb) {
         const sp = s ? meta.span[String(s)] : [0, meta.flows - 1];
         source = sp ? streamSource(sp[0], sp[1]) : arraySource([]);
         const n = s ? (sp ? sp[1] - sp[0] + 1 : 0) : meta.flows;
@@ -406,14 +415,18 @@
         const key = { no: f => f[0], name: f => f[4].toLowerCase(), count: f => f[3] - f[2] + 1, surah: f => f[1] * 10000 + f[2] }[sort.key];
         r = r.slice().sort((x, y) => { const a = key(x), b = key(y); return (a < b ? -1 : a > b ? 1 : x[0] - y[0]) * sort.dir; });
         const v = r.reduce((n, f) => n + f[3] - f[2] + 1, 0);
-        if (fg.checked) {
-          /* Group by topic: every flow of a topic together under one heading, topics in the order they first
-             appear in the current list (so reading order by default, A-Z when sorted by topic), flows inside a
-             topic keeping the current order. Only what the filters leave is grouped. */
-          const groups = new Map();
-          for (const f of r) { if (!groups.has(f[5])) groups.set(f[5], { slug: f[5], name: f[4], n: 0, v: 0, flows: [] }); const g = groups.get(f[5]); g.n++; g.v += f[3] - f[2] + 1; g.flows.push(f); }
+        if (gb) {
+          /* Group by topic or by surah: every flow of a group together under one heading, groups in the order
+             they first appear in the current list (reading order by default, A-Z when sorted by topic), flows
+             inside a group keeping the current order. Only what the filters leave is grouped. */
+          const groups = new Map(), byTopic = gb === 'topic';
+          for (const f of r) {
+            const k = byTopic ? f[5] : f[1];
+            if (!groups.has(k)) groups.set(k, byTopic ? { slug: f[5], name: f[4], n: 0, v: 0, flows: [] } : { surah: f[1], name: surahName(f[1]), n: 0, v: 0, flows: [] });
+            const g = groups.get(k); g.n++; g.v += f[3] - f[2] + 1; g.flows.push(f);
+          }
           source = arraySource([...groups.values()].flatMap(g => [g, ...g.flows]));
-          total.textContent = `${groups.size} topic${groups.size === 1 ? '' : 's'} · ${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
+          total.textContent = `${groups.size} ${byTopic ? 'topic' : 'surah'}${groups.size === 1 ? '' : 's'} · ${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
         } else {
           source = arraySource(r);
           total.textContent = `${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
@@ -466,7 +479,15 @@
     fs.addEventListener('change', apply);
     fd.addEventListener('change', () => { store.set('qf-desc', fd.checked); applyView(); });
     fc.addEventListener('change', () => { store.set('qf-count', fc.checked); applyView(); });
-    fg.addEventListener('change', () => { store.set('qf-group', fg.checked); apply(); });
+    fg.addEventListener('change', () => { store.set('qf-groupby', fg.value); apply(); });
+    // Clear all filters (also Esc): search, topic chips, surah and sort back to the start. Display choices stay.
+    function clearFilters() {
+      fq.value = ''; fs.value = ''; sel.clear(); drawChips(); fac.hidden = true;
+      sort = { key: 'no', dir: 1 };
+      $$('[data-sort]', table).forEach(x => x.setAttribute('aria-sort', x.dataset.sort === 'no' ? 'ascending' : 'none'));
+      apply();
+    }
+    fclear.addEventListener('click', () => { clearFilters(); fq.focus(); });
     $$('[data-sort]', table).forEach(b => b.addEventListener('click', () => {
       const k = b.dataset.sort;
       sort = sort.key === k ? { key: k, dir: -sort.dir } : { key: k, dir: 1 };
@@ -477,7 +498,7 @@
     document.addEventListener('keydown', e => {
       if ($('#flows').hidden || !dlg.hidden || $('#topic-pop').open) return;
       const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
-      if (e.key === 'Escape') { if (!fac.hidden) { fac.hidden = true; return; } fq.value = ''; fs.value = ''; sel.clear(); drawChips(); sort = { key: 'no', dir: 1 }; $$('[data-sort]', table).forEach(x => x.setAttribute('aria-sort', x.dataset.sort === 'no' ? 'ascending' : 'none')); if (typing) document.activeElement.blur(); apply(); return; }
+      if (e.key === 'Escape') { if (!fac.hidden) { fac.hidden = true; return; } if (typing) document.activeElement.blur(); clearFilters(); return; }
       if (typing) return;
       const lis = $$('.fl', list);
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {

@@ -360,3 +360,14 @@ html.modal-open { overflow: hidden }
 .tl-sort select { font: 500 .86rem var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px }
 .tl-sort select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
 .tp-acts { display: flex; flex-wrap: wrap; gap: 4px 16px }
+/* Group by surah heading number, and the Clear all filters button. */
+.fl-group-no { font: 500 .78rem var(--mono); color: var(--gold); margin-right: 10px }
+.f-clear { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--accent); font: 500 .86rem var(--body); white-space: nowrap }
+.f-clear::before { content: "× "; }
+.f-clear:hover { border-color: var(--accent) }
+.f-clear:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+/* Filters: the search box gets its own line; surah, grouping and clear sit on the next. */
+#flows .filters .f-tags { flex: 1 1 100% }
+.f-groupby { flex: 0 1 220px }
+/* Grouped by surah: the surah column and its sort button step aside. */
+.no-surah .fl-head [data-sort="surah"] { display: none }
