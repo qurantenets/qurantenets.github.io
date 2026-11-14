@@ -11,7 +11,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Literata:opsz,wght@7..72,400;7..72,600&family=Marcellus&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Tamil:wght@400&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=488da65b78">
+<link rel="stylesheet" href="/assets/app.css?v=667df385af">
 <script>try{var t=localStorage.getItem('qf-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body data-kind="surah" data-base="/">
@@ -36,12 +36,14 @@
     
   </div>
   <div class="ctl" data-display>
+    <div class="seg" role="group" aria-label="Show the surah as"><button type="button" data-sview="flows" aria-pressed="true">Flows</button><button type="button" data-sview="read" aria-pressed="false">Read through</button></div>
     <label><input type="checkbox" data-lang="ar" checked> Arabic</label>
     <label><input type="checkbox" data-lang="en" checked> English</label>
     <label><input type="checkbox" data-lang="ta"> Tamil</label>
-    <label><input type="checkbox" data-desc checked> Descriptions</label>
-    <label><input type="checkbox" data-count checked> Verse count</label>
-    <button type="button" class="ghost" data-expand-all>Open all</button>
+    <label class="t-only"><input type="checkbox" data-desc checked> Descriptions</label>
+    <label class="t-only"><input type="checkbox" data-count checked> Verse count</label>
+    <label class="goto">Go to verse <input type="number" min="1" max="129" inputmode="numeric" placeholder="1–129" data-goto aria-label="Go to verse number (1 to 129)"></label>
+    <button type="button" class="ghost t-only" data-expand-all>Open all</button>
   </div>
   <div class="flow-table no-surah" data-table><div class="fl-head" aria-hidden="true"><span>#</span><span>Topic</span><span>Verses</span><span class="c-n">Count</span></div><ol class="timeline"><li class="sec" aria-hidden="true"><i lang="ar">ع</i>Section 1 · from 9:1</li>
 <li class="fl" id="f-9-1" data-s="9" data-a="1" data-b="4" data-slug="covenants"><span class="c-no">454</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Covenants</button><p class="fl-desc">Allah and His Messenger declare disassociation from the polytheists they had treaties with, giving them four months, but treaties with those who kept them are honored to their term.</p></div><span class="c-rg">9:1–4</span><a class="c-surah" href="/surah/9/">At-Tawba</a><span class="c-n">4</span><div class="fl-verses" hidden></div></li>
@@ -101,6 +103,7 @@
 <li class="fl" id="f-9-123" data-s="9" data-a="123" data-b="123" data-slug="fighting"><span class="c-no">493</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Fighting</button><p class="fl-desc">Believers are told to fight the disbelievers adjacent to them and let them find harshness, knowing that Allah is with the righteous.</p></div><span class="c-rg">9:123</span><a class="c-surah" href="/surah/9/">At-Tawba</a><span class="c-n">1</span><div class="fl-verses" hidden></div></li>
 <li class="fl" id="f-9-124" data-s="9" data-a="124" data-b="127" data-slug="hypocrites"><span class="c-no">494</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Hypocrites</button><p class="fl-desc">Each revealed surah increases believers in faith but adds evil to those with diseased hearts; tested every year, they neither repent nor remember, and slip away when a surah comes.</p></div><span class="c-rg">9:124–127</span><a class="c-surah" href="/surah/9/">At-Tawba</a><span class="c-n">4</span><div class="fl-verses" hidden></div></li>
 <li class="fl" id="f-9-128" data-s="9" data-a="128" data-b="129" data-slug="prophet-muhammad"><span class="c-no">495</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Prophet Muhammad</button><p class="fl-desc">A Messenger has come from among them, grieved by their suffering, kind and merciful to believers; if they turn away, he relies on Allah, Lord of the Great Throne.</p></div><span class="c-rg">9:128–129</span><a class="c-surah" href="/surah/9/">At-Tawba</a><span class="c-n">2</span><div class="fl-verses" hidden></div></li></ol></div>
+  <div class="read" id="read" data-read-scope hidden></div>
   <nav class="pn" aria-label="Surahs"><a rel="prev" href="/surah/8/">← 8. Al-Anfaal</a><a rel="next" href="/surah/10/">10. Yunus →</a></nav>
 </section>
 </main>
@@ -134,6 +137,6 @@
   <ol class="results" id="results"></ol>
 </div>
 <script>window.QF={base:"/",ga:"G-0FG3FEVN0J"};</script>
-<script src="/assets/app.js?v=488da65b78" defer></script>
+<script src="/assets/app.js?v=667df385af" defer></script>
 </body>
 </html>

@@ -92,6 +92,7 @@
     if (!langs.ar && !langs.en && !langs.ta) { langs.en = true; }
     store.set('qf-langs', langs); syncLangBoxes();
     $$('.fl.open').forEach(li => renderVerses(li));
+    document.dispatchEvent(new Event('qf-langs')); // other verse views redraw themselves
   }));
 
   /* ---------- reading aloud ----------
@@ -237,7 +238,7 @@
     document.addEventListener('click', e => {
       const one = e.target.closest('[data-speak-one]'), all = e.target.closest('[data-read-all]');
       if (one) { const el = one.closest('[data-speak]'); if (speech.el === el) speech.stop(); else speech.say([el]); }
-      else if (all) { if (all.getAttribute('aria-pressed') === 'true') speech.stop(); else speech.say($$('[data-speak]', all.closest('.fl-verses')), all); }
+      else if (all) { if (all.getAttribute('aria-pressed') === 'true') speech.stop(); else speech.say($$('[data-speak]', all.closest('[data-read-scope], .fl-verses')), all); }
     });
   }
 
@@ -400,6 +401,59 @@
   };
   if (document.body.dataset.kind !== 'home') { hashFlow(); window.addEventListener('hashchange', hashFlow); }
 
+  /* ---------- a surah: Flows or Read through, and Go to verse ----------
+     Read through shows every verse in order, each flow's verses under its name; the name stays pinned at the
+     top while its verses scroll by. It loads the whole surah once per language (that is what is being read). */
+  const surahSec = document.body.dataset.kind === 'surah' && $('.surah[data-surah]');
+  if (surahSec) {
+    const S = +surahSec.dataset.surah, readBox = $('#read', surahSec), gotoBox = $('[data-goto]', surahSec);
+    let mode = /^#f-/.test(location.hash) ? 'flows' : location.hash === '#read' ? 'read' : store.get('qf-sview', 'flows'), readP = null;
+    const flowRows = () => $$('.timeline .fl', surahSec).map(li => ({ a: +li.dataset.a, b: +li.dataset.b, name: $('.fl-open', li).textContent, slug: li.dataset.slug }));
+    async function drawRead() {
+      const want = wantLangs(), keep = $$('.v', readBox).find(el => el.getBoundingClientRect().top >= 70); // stay on the same verse after a redraw
+      if (!keep) readBox.innerHTML = LOADING('Loading the surah…');
+      if (readBox.contains(speech.el)) speech.stop();
+      try {
+        const got = await Promise.all(want.map(l => text(l, S))), t = Object.fromEntries(want.map((l, i) => [l, got[i]]));
+        const n = got[0].length, parts = []; let v = 1;
+        for (const f of flowRows()) { if (f.a > v) parts.push({ a: v, b: f.a - 1 }); parts.push(f); v = f.b + 1; }
+        if (v <= n) parts.push({ a: v, b: n });
+        const next = $('.pn a[rel="next"]', surahSec);
+        const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<div class="rd-acts"><button type="button" class="v-readall" data-read-all data-read-label="Read the surah aloud">${ICON_SPEAK} Read the surah aloud</button></div>` : '';
+        readBox.innerHTML = readAll + parts.map(f => `<section class="rd-flow" data-a="${f.a}"><h3 class="rd-name">${f.name ? `<a href="${BASE}topic/${f.slug}/">${esc(f.name)}</a>` : 'Not grouped yet'}<span>${rng(S, f.a, f.b)}</span></h3>` +
+          Array.from({ length: f.b - f.a + 1 }, (_, i) => verseHTML(S, f.a + i, t, f.a + i - 1)).join('') + '</section>').join('') +
+          (next ? `<p class="rd-next"><a href="${next.getAttribute('href')}#read">Continue reading: ${esc(next.textContent.replace(/\s*→\s*$/, ''))} →</a></p>` : '<p class="rd-next">The end of the Quran.</p>');
+        if (keep) { const el = $(`.v[data-ref="${keep.dataset.ref}"]`, readBox); if (el) el.scrollIntoView({ block: 'start' }); }
+      } catch (e) { readBox.innerHTML = `<p class="v-err">The surah could not be loaded (${esc(e.message)}). Check your connection and try again.</p>`; readP = null; }
+    }
+    const setMode = m => {
+      mode = m; store.set('qf-sview', m);
+      surahSec.classList.toggle('reading', m === 'read'); readBox.hidden = m !== 'read';
+      $$('[data-sview]', surahSec).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sview === m)));
+      if (m === 'read' && !readP) readP = drawRead();
+      if (m !== 'read' && readBox.contains(speech.el)) speech.stop();
+      return m === 'read' ? readP : Promise.resolve();
+    };
+    $$('[data-sview]', surahSec).forEach(b => b.addEventListener('click', () => setMode(b.dataset.sview)));
+    document.addEventListener('qf-langs', () => { if (readP) readP = drawRead(); });
+    setMode(mode);
+    // Go to verse: in Flows the flow holding it opens; either way the verse comes into view and is marked.
+    async function goTo(v) {
+      if (!(v >= 1 && v <= +gotoBox.max)) return;
+      if (mode === 'read') await readP;
+      else { const li = $$('.timeline .fl', surahSec).find(x => +x.dataset.a <= v && v <= +x.dataset.b); if (!li) return; if (!li.classList.contains('open')) await toggle(li, true); }
+      const el = $(`${mode === 'read' ? '#read' : '.timeline'} .v[data-ref="${S}:${v}"]`, surahSec); if (!el) return;
+      const far = Math.abs(el.getBoundingClientRect().top) > innerHeight * 2; // a long jump goes straight there
+      el.scrollIntoView({ block: 'center', behavior: far || matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    }
+    // Enter always goes; leaving the box goes only to a number not gone to yet (otherwise clicking elsewhere after
+    // Enter would jump back to the verse in the middle of that click).
+    let lastGo = 0;
+    gotoBox.addEventListener('change', () => { const v = +gotoBox.value; if (v !== lastGo) { lastGo = v; goTo(v); } });
+    gotoBox.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); lastGo = +gotoBox.value; goTo(lastGo); } });
+  }
+
   /* ---------- search ---------- */
   const dlg = $('#search'), q = $('#q'), results = $('#results');
   let sel = -1, items = [];
@@ -485,6 +539,34 @@
       VIEWS.forEach(v => { $('#' + v).hidden = v !== view; });
       if (view === 'topics') drawTopics();
     };
+
+    /* Which flow is a verse in? Pick a surah, type a verse: the flow, its place and the verse itself, from the
+       small map and that flow's own file. */
+    const lk = $('#lookup');
+    if (lk) {
+      const ls = $('#lk-s'), lv = $('#lk-v'), lo = $('#lk-out');
+      let lkT = 0, lkGen = 0;
+      const setMax = () => { const n = +ls.selectedOptions[0].dataset.n; lv.max = n; lv.placeholder = `1–${n}`; };
+      async function find() {
+        const s = +ls.value, v = +lv.value, n = +lv.max, my = ++lkGen;
+        if (!lv.value) { lo.innerHTML = ''; return; }
+        if (!(v >= 1 && v <= n)) { lo.innerHTML = `<p class="v-err">${esc(ls.selectedOptions[0].textContent)} has ${n} verses: choose 1 to ${n}.</p>`; return; }
+        lo.innerHTML = LOADING('Finding the flow…');
+        try {
+          const want = wantLangs(), [f, ...got] = await Promise.all([flowOf(s, v), ...want.map(l => verseText(l, s, v))]);
+          if (my !== lkGen) return;
+          const t = Object.fromEntries(want.map((l, i) => [l, [got[i]]]));
+          lo.innerHTML = (f ? `<p class="lk-res">Verse <b>${s}:${v}</b> is in the flow <a href="${BASE}topic/${f.slug}/">${esc(f.name)}</a> · ${rng(s, f.a, f.b)} · flow ${f.no} of the Quran</p>`
+                            : `<p class="lk-res">Verse <b>${s}:${v}</b> is not in a flow yet.</p>`) +
+            verseHTML(s, v, t, 0) +
+            `<p class="v-links">${f ? `<a href="${BASE}surah/${s}/#f-${s}-${f.a}">Open this flow in its surah</a>` : ''}<a href="${BASE}surah/${s}/#read">Read the surah through</a></p>`;
+        } catch (e) { if (my === lkGen) lo.innerHTML = `<p class="v-err">That could not be looked up (${esc(e.message)}). Check your connection.</p>`; }
+      }
+      setMax();
+      ls.addEventListener('change', () => { setMax(); if (lv.value) find(); });
+      lv.addEventListener('input', () => { clearTimeout(lkT); lkT = setTimeout(find, 350); });
+      lk.addEventListener('submit', e => { e.preventDefault(); clearTimeout(lkT); find(); });
+    }
 
     const list = $('#all-flows'), table = $('#flow-table'), fq = $('#f-q'), fs = $('#f-surah'), fchips = $('#f-chips'), fac = $('#f-ac'), fd = $('#f-desc'), fc = $('#f-count'), fg = $('#f-group'), total = $('#f-total');
     fd.checked = store.get('qf-desc', false); fc.checked = store.get('qf-count', true);

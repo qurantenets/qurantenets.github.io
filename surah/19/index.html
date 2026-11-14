@@ -11,7 +11,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Literata:opsz,wght@7..72,400;7..72,600&family=Marcellus&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Tamil:wght@400&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=488da65b78">
+<link rel="stylesheet" href="/assets/app.css?v=667df385af">
 <script>try{var t=localStorage.getItem('qf-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body data-kind="surah" data-base="/">
@@ -36,12 +36,14 @@
     <p class="basmala" lang="ar">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p>
   </div>
   <div class="ctl" data-display>
+    <div class="seg" role="group" aria-label="Show the surah as"><button type="button" data-sview="flows" aria-pressed="true">Flows</button><button type="button" data-sview="read" aria-pressed="false">Read through</button></div>
     <label><input type="checkbox" data-lang="ar" checked> Arabic</label>
     <label><input type="checkbox" data-lang="en" checked> English</label>
     <label><input type="checkbox" data-lang="ta"> Tamil</label>
-    <label><input type="checkbox" data-desc checked> Descriptions</label>
-    <label><input type="checkbox" data-count checked> Verse count</label>
-    <button type="button" class="ghost" data-expand-all>Open all</button>
+    <label class="t-only"><input type="checkbox" data-desc checked> Descriptions</label>
+    <label class="t-only"><input type="checkbox" data-count checked> Verse count</label>
+    <label class="goto">Go to verse <input type="number" min="1" max="98" inputmode="numeric" placeholder="1–98" data-goto aria-label="Go to verse number (1 to 98)"></label>
+    <button type="button" class="ghost t-only" data-expand-all>Open all</button>
   </div>
   <div class="flow-table no-surah" data-table><div class="fl-head" aria-hidden="true"><span>#</span><span>Topic</span><span>Verses</span><span class="c-n">Count</span></div><ol class="timeline"><li class="sec" aria-hidden="true"><i lang="ar">ع</i>Section 1 · from 19:1</li>
 <li class="fl" id="f-19-1" data-s="19" data-a="1" data-b="11" data-slug="zechariah"><span class="c-no">744</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Zechariah</button><p class="fl-desc">Zechariah, old and with a barren wife, privately asks his Lord for an heir and is given news of a son named John, with the sign of three nights&#x27; silence.</p></div><span class="c-rg">19:1–11</span><a class="c-surah" href="/surah/19/">Maryam</a><span class="c-n">11</span><div class="fl-verses" hidden></div></li>
@@ -73,6 +75,7 @@
 <li class="fl" id="f-19-96" data-s="19" data-a="96" data-b="96" data-slug="believers"><span class="c-no">765</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Believers</button><p class="fl-desc">The Most Merciful will appoint affection for those who believe and do righteous deeds.</p></div><span class="c-rg">19:96</span><a class="c-surah" href="/surah/19/">Maryam</a><span class="c-n">1</span><div class="fl-verses" hidden></div></li>
 <li class="fl" id="f-19-97" data-s="19" data-a="97" data-b="97" data-slug="quran"><span class="c-no">766</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Quran</button><p class="fl-desc">The Quran is made easy in Arabic so the Prophet can give good tidings to the righteous and warn a hostile people.</p></div><span class="c-rg">19:97</span><a class="c-surah" href="/surah/19/">Maryam</a><span class="c-n">1</span><div class="fl-verses" hidden></div></li>
 <li class="fl" id="f-19-98" data-s="19" data-a="98" data-b="98" data-slug="previous-nations"><span class="c-no">767</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Previous Nations</button><p class="fl-desc">Many generations before them were destroyed, and not one of them can be seen or heard now.</p></div><span class="c-rg">19:98</span><a class="c-surah" href="/surah/19/">Maryam</a><span class="c-n">1</span><div class="fl-verses" hidden></div></li></ol></div>
+  <div class="read" id="read" data-read-scope hidden></div>
   <nav class="pn" aria-label="Surahs"><a rel="prev" href="/surah/18/">← 18. Al-Kahf</a><a rel="next" href="/surah/20/">20. Taa-Haa →</a></nav>
 </section>
 </main>
@@ -106,6 +109,6 @@
   <ol class="results" id="results"></ol>
 </div>
 <script>window.QF={base:"/",ga:"G-0FG3FEVN0J"};</script>
-<script src="/assets/app.js?v=488da65b78" defer></script>
+<script src="/assets/app.js?v=667df385af" defer></script>
 </body>
 </html>

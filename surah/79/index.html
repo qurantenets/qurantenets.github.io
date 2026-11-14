@@ -11,7 +11,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Literata:opsz,wght@7..72,400;7..72,600&family=Marcellus&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Tamil:wght@400&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=488da65b78">
+<link rel="stylesheet" href="/assets/app.css?v=667df385af">
 <script>try{var t=localStorage.getItem('qf-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body data-kind="surah" data-base="/">
@@ -36,12 +36,14 @@
     <p class="basmala" lang="ar">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p>
   </div>
   <div class="ctl" data-display>
+    <div class="seg" role="group" aria-label="Show the surah as"><button type="button" data-sview="flows" aria-pressed="true">Flows</button><button type="button" data-sview="read" aria-pressed="false">Read through</button></div>
     <label><input type="checkbox" data-lang="ar" checked> Arabic</label>
     <label><input type="checkbox" data-lang="en" checked> English</label>
     <label><input type="checkbox" data-lang="ta"> Tamil</label>
-    <label><input type="checkbox" data-desc checked> Descriptions</label>
-    <label><input type="checkbox" data-count checked> Verse count</label>
-    <button type="button" class="ghost" data-expand-all>Open all</button>
+    <label class="t-only"><input type="checkbox" data-desc checked> Descriptions</label>
+    <label class="t-only"><input type="checkbox" data-count checked> Verse count</label>
+    <label class="goto">Go to verse <input type="number" min="1" max="46" inputmode="numeric" placeholder="1–46" data-goto aria-label="Go to verse number (1 to 46)"></label>
+    <button type="button" class="ghost t-only" data-expand-all>Open all</button>
   </div>
   <div class="flow-table no-surah" data-table><div class="fl-head" aria-hidden="true"><span>#</span><span>Topic</span><span>Verses</span><span class="c-n">Count</span></div><ol class="timeline"><li class="sec" aria-hidden="true"><i lang="ar">ع</i>Section 1 · from 79:1</li>
 <li class="fl" id="f-79-1" data-s="79" data-a="1" data-b="9" data-slug="judgement-day"><span class="c-no">1579</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Judgement Day</button><p class="fl-desc">By the angels who take souls and arrange affairs, on the Day of the blast and the one that follows, hearts will tremble and eyes be humbled.</p></div><span class="c-rg">79:1–9</span><a class="c-surah" href="/surah/79/">An-Naazi&#x27;aat</a><span class="c-n">9</span><div class="fl-verses" hidden></div></li>
@@ -51,6 +53,7 @@
 <li class="fl" id="f-79-27" data-s="79" data-a="27" data-b="33" data-slug="creation"><span class="c-no">1582</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Creation</button><p class="fl-desc">Allah built the heaven, raised it, darkened its night and brought out its brightness, then spread the earth, brought out its water and pasture and set the mountains as provision.</p></div><span class="c-rg">79:27–33</span><a class="c-surah" href="/surah/79/">An-Naazi&#x27;aat</a><span class="c-n">7</span><div class="fl-verses" hidden></div></li>
 <li class="fl" id="f-79-34" data-s="79" data-a="34" data-b="41" data-slug="paradise-and-hell"><span class="c-no">1583</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Paradise &amp; Hell</button><p class="fl-desc">When the great Calamity comes and Hellfire is exposed, whoever transgressed and preferred worldly life goes to Hellfire, and whoever feared his Lord and restrained his desires goes to Paradise.</p></div><span class="c-rg">79:34–41</span><a class="c-surah" href="/surah/79/">An-Naazi&#x27;aat</a><span class="c-n">8</span><div class="fl-verses" hidden></div></li>
 <li class="fl" id="f-79-42" data-s="79" data-a="42" data-b="46" data-slug="judgement-day"><span class="c-no">1584</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Judgement Day</button><p class="fl-desc">They ask the Prophet when the Hour comes; its time rests with his Lord, he is only a warner, and they will feel they stayed but an afternoon or morning.</p></div><span class="c-rg">79:42–46</span><a class="c-surah" href="/surah/79/">An-Naazi&#x27;aat</a><span class="c-n">5</span><div class="fl-verses" hidden></div></li></ol></div>
+  <div class="read" id="read" data-read-scope hidden></div>
   <nav class="pn" aria-label="Surahs"><a rel="prev" href="/surah/78/">← 78. An-Naba</a><a rel="next" href="/surah/80/">80. Abasa →</a></nav>
 </section>
 </main>
@@ -84,6 +87,6 @@
   <ol class="results" id="results"></ol>
 </div>
 <script>window.QF={base:"/",ga:"G-0FG3FEVN0J"};</script>
-<script src="/assets/app.js?v=488da65b78" defer></script>
+<script src="/assets/app.js?v=667df385af" defer></script>
 </body>
 </html>

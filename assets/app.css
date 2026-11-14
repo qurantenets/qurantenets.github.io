@@ -418,3 +418,30 @@ html.modal-open { overflow: hidden }
 .v-load { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .9rem; margin: 6px 0 }
 .v-load .qf-loader { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--gold) 22%, transparent); border-top-color: var(--gold); animation: qf-spin .8s linear infinite }
 @media (prefers-reduced-motion: reduce) { .v-load .qf-loader { animation: none } }
+/* A surah read through: each flow's verses under its name, which stays pinned while they scroll by. */
+.surah.reading .flow-table, .surah.reading .t-only { display: none }
+.ctl .goto input { width: 7.5em; font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px }
+.read { margin-top: 8px }
+.rd-acts { margin: 6px 0 14px }
+.rd-flow { padding-bottom: 6px }
+.rd-name { position: sticky; top: calc(62px + env(safe-area-inset-top, 0px)); z-index: 4; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 18px 0 8px; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--line); font: 600 1rem var(--body) }
+.rd-name a { color: var(--accent); text-decoration: none }
+.rd-name a:hover { text-decoration: underline }
+.rd-name span { font: 500 .78rem var(--mono); color: var(--muted); white-space: nowrap }
+.read .v { padding: 10px 4px; border-bottom: 1px dashed var(--line) }
+.rd-next { margin: 26px 0 8px; text-align: center; font-weight: 600 }
+.v.flash { animation: qf-flash 1.6s ease-out }
+@keyframes qf-flash { 0%, 30% { background: color-mix(in srgb, var(--gold) 26%, transparent) } 100% { background: transparent } }
+@media (prefers-reduced-motion: reduce) { .v.flash { animation: none; outline: 2px solid var(--gold) } }
+/* Which flow is a verse in (Surahs page). */
+.lookup { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; margin: 4px 0 22px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface) }
+.lk-title { flex: 1 0 100%; margin: 0; font-weight: 600 }
+.lookup label { display: grid; gap: 4px; font-size: .82rem; color: var(--muted) }
+.lookup select, .lookup input { font: inherit; font-size: .95rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-width: 0 }
+.lookup select { max-width: 230px }
+.lookup input { width: 6.5em }
+.lookup button[type="submit"] { all: unset; cursor: pointer; padding: 7px 16px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 600 }
+.lookup button[type="submit"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.lk-out { flex: 1 0 100% }
+.lk-out:empty { display: none }
+.lk-res { margin: 4px 0 10px }

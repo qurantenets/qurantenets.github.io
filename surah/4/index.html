@@ -11,7 +11,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Literata:opsz,wght@7..72,400;7..72,600&family=Marcellus&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Tamil:wght@400&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=488da65b78">
+<link rel="stylesheet" href="/assets/app.css?v=667df385af">
 <script>try{var t=localStorage.getItem('qf-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body data-kind="surah" data-base="/">
@@ -36,12 +36,14 @@
     <p class="basmala" lang="ar">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p>
   </div>
   <div class="ctl" data-display>
+    <div class="seg" role="group" aria-label="Show the surah as"><button type="button" data-sview="flows" aria-pressed="true">Flows</button><button type="button" data-sview="read" aria-pressed="false">Read through</button></div>
     <label><input type="checkbox" data-lang="ar" checked> Arabic</label>
     <label><input type="checkbox" data-lang="en" checked> English</label>
     <label><input type="checkbox" data-lang="ta"> Tamil</label>
-    <label><input type="checkbox" data-desc checked> Descriptions</label>
-    <label><input type="checkbox" data-count checked> Verse count</label>
-    <button type="button" class="ghost" data-expand-all>Open all</button>
+    <label class="t-only"><input type="checkbox" data-desc checked> Descriptions</label>
+    <label class="t-only"><input type="checkbox" data-count checked> Verse count</label>
+    <label class="goto">Go to verse <input type="number" min="1" max="176" inputmode="numeric" placeholder="1–176" data-goto aria-label="Go to verse number (1 to 176)"></label>
+    <button type="button" class="ghost t-only" data-expand-all>Open all</button>
   </div>
   <div class="flow-table no-surah" data-table><div class="fl-head" aria-hidden="true"><span>#</span><span>Topic</span><span>Verses</span><span class="c-n">Count</span></div><ol class="timeline"><li class="sec" aria-hidden="true"><i lang="ar">ع</i>Section 1 · from 4:1</li>
 <li class="fl" id="f-4-1" data-s="4" data-a="1" data-b="1" data-slug="creation"><span class="c-no">184</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Creation</button><p class="fl-desc">Mankind is told to fear their Lord, who created them from one soul and its mate and spread many men and women, and to fear Allah and the wombs.</p></div><span class="c-rg">4:1</span><a class="c-surah" href="/surah/4/">An-Nisaa</a><span class="c-n">1</span><div class="fl-verses" hidden></div></li>
@@ -145,6 +147,7 @@
 <li class="sec" aria-hidden="true"><i lang="ar">ع</i>Section 24 · from 4:172</li>
 <li class="fl" id="f-4-174" data-s="4" data-a="174" data-b="175" data-slug="quran"><span class="c-no">260</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Quran</button><p class="fl-desc">Mankind has received conclusive proof and a clear light from their Lord; those who believe and hold fast to Allah will be given mercy and guided on a straight path.</p></div><span class="c-rg">4:174–175</span><a class="c-surah" href="/surah/4/">An-Nisaa</a><span class="c-n">2</span><div class="fl-verses" hidden></div></li>
 <li class="fl" id="f-4-176" data-s="4" data-a="176" data-b="176" data-slug="inheritance"><span class="c-no">261</span><div class="fl-main"><button class="fl-open" type="button" aria-expanded="false">Inheritance</button><p class="fl-desc">Allah rules on one with neither descendants nor ascendants: a lone sister gets half, two sisters two-thirds, and with brothers and sisters the male gets two females&#x27; share.</p></div><span class="c-rg">4:176</span><a class="c-surah" href="/surah/4/">An-Nisaa</a><span class="c-n">1</span><div class="fl-verses" hidden></div></li></ol></div>
+  <div class="read" id="read" data-read-scope hidden></div>
   <nav class="pn" aria-label="Surahs"><a rel="prev" href="/surah/3/">← 3. Aal-i-Imraan</a><a rel="next" href="/surah/5/">5. Al-Maaida →</a></nav>
 </section>
 </main>
@@ -178,6 +181,6 @@
   <ol class="results" id="results"></ol>
 </div>
 <script>window.QF={base:"/",ga:"G-0FG3FEVN0J"};</script>
-<script src="/assets/app.js?v=488da65b78" defer></script>
+<script src="/assets/app.js?v=667df385af" defer></script>
 </body>
 </html>
