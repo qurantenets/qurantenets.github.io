@@ -1,11 +1,11 @@
 /* Quran Flow - direction A "Illumination": Mushaf ivory, green ink, gilded timeline nodes.
-   Layout: a single reading column (max ~74ch) with a gutter timeline; home adds tabbed views. */
+   Layout: a single reading column (max ~74ch) with a gutter timeline. One menu: top bar, or a bottom bar on phones. */
 :root {
   --bg: #fbfaf6; --surface: #ffffff; --raise: #f3f1e9; --fg: #1e2a24; --muted: #5f6b63; --line: #e4e1d6;
   --accent: #0e5a43; --accent-ink: #ffffff; --gold: #a8862f; --soft: #e7f0eb; --focus: #0e5a43;
   --display: "Marcellus", Georgia, serif; --body: "Literata", Georgia, serif;
   --arabic: "Amiri Quran", "Amiri", "Noto Naskh Arabic", serif; --tamil: "Noto Sans Tamil", var(--body);
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace; --nav-h: 62px;
   --measure: 74ch; --r: 10px;
   /* Topic categories (data/categories.json): a strong colour and a light tint each; white reads on every strong one. */
   --c-faith: #0f6b63; --c-faith-t: #d8ece8; --c-prophets: #9a5b12; --c-prophets-t: #f3e4cc;
@@ -52,11 +52,39 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .search-btn { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; background: var(--bg); color: var(--muted); cursor: pointer; text-align: left }
 .search-btn .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .search-btn kbd { margin-left: auto }
-.nav { display: flex; gap: 14px; font: 500 .92rem var(--body) }
-.nav a { color: var(--muted); text-decoration: none }
+/* The one menu: in the top bar here, a bar along the bottom on phones (below). */
+.nav { display: flex; gap: 4px; font: 500 .92rem var(--body) }
+.nav a { color: var(--muted); text-decoration: none; padding: 6px 9px; border-radius: 8px; white-space: nowrap }
 .nav a:hover { color: var(--fg) }
+.nav a[aria-current="page"] { color: var(--accent); background: var(--soft) }
+.nav .ni, .nav-search { display: none }
 .theme-btn { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; width: 34px; height: 34px; cursor: pointer; flex: none }
-@media (max-width: 760px) { .nav { display: none } .search-btn kbd { display: none } }
+@media (max-width: 760px) {
+  /* Phones: search moves into the menu, and the menu to the bottom of the screen, in reach of the thumb. The top
+     bar gives up its blur here: a blurred parent would pin the bottom bar to itself instead of to the screen. */
+  .top { background: var(--surface); backdrop-filter: none }
+  .top-in { min-height: 62px }
+  .search-btn { display: none }
+  .top .nav-fav { margin-left: auto }
+  .nav { position: fixed; z-index: 1; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; align-items: end;
+    padding: 6px max(6px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px));
+    background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -6px 18px rgb(0 0 0 / .06); font-size: .7rem }
+  .nav a, .nav-search { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 48px; padding: 4px 2px; border-radius: 10px;
+    color: var(--muted); font: 500 .7rem/1.1 var(--body); text-align: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation }
+  .nav a[aria-current="page"] { color: var(--accent); background: none; font-weight: 600 }
+  .nav .ni { display: block }
+  .nav .nav-about { display: none }
+  .nav-search { color: var(--fg) }
+  .nav-fab { display: grid; place-items: center; width: 52px; height: 52px; margin-top: -26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+    border: 4px solid var(--surface); box-shadow: 0 6px 16px rgb(0 0 0 / .18) }
+  .nav-fab .ni { width: 24px; height: 24px }
+  .nav a:focus-visible, .nav-search:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px }
+  .nav a:active, .nav-search:active .nav-fab { transform: scale(.96) }
+  /* Room for the bar: the page ends above it, and the floating bars sit above it. */
+  body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)) }
+  body > .share-bar, body > .sp-bar, body > .consent { --bar-b: calc(var(--nav-h) + 24px) }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) { .nav a:active, .nav-search:active .nav-fab { transform: none } }
 
 /* hero */
 .hero { padding-block: 40px 18px }
@@ -66,11 +94,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .stats b { color: var(--fg); font-variant-numeric: tabular-nums }
 
 /* tabs and filters */
-.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-top: 18px; overflow-x: auto }
-.tabs a { padding: 10px 14px 11px; font: 500 .98rem var(--body); color: var(--muted); text-decoration: none; border-bottom: 2px solid transparent }
-.tabs a:hover { color: var(--fg) }
-.tabs a[aria-current="page"] { color: var(--fg); border-color: var(--accent) }
-.tabs a:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px }
+.views { margin-top: 18px }
+.views > .panel { border-top: 1px solid var(--line) }
 .panel { padding-block: 20px 48px }
 .panel .filters + .filters { margin-top: 8px }
 .flow-table { margin-top: 10px }
@@ -215,7 +240,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .results em { font: 500 .74rem var(--mono); color: var(--muted); font-style: normal }
 
 /* consent */
-.consent { position: fixed; z-index: 30; left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 560px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; box-shadow: 0 10px 30px rgb(0 0 0 / .12); font-size: .88rem }
+.consent { position: fixed; z-index: 30; left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(var(--bar-b, 12px) + env(safe-area-inset-bottom, 0px)); max-width: 560px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; box-shadow: 0 10px 30px rgb(0 0 0 / .12); font-size: .88rem }
 .consent p { margin: 0; flex: 1 1 260px }
 .consent div { display: flex; gap: 8px }
 .consent button { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 6px 14px; cursor: pointer }
@@ -414,9 +439,10 @@ html.modal-open { overflow: hidden }
 .nav-fav-n { font: 500 .78rem var(--mono); color: var(--muted) }
 .nav-fav:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
 .fav-list { display: grid; gap: 16px }
-/* Bottom bars: selected verses, and reading aloud (above it when both show). */
-.share-bar, .sp-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: min(720px, calc(100% - 24px)); padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--fg); box-shadow: 0 10px 30px rgba(0, 0, 0, .2); font-size: .88rem }
-.sp-bar.lift { bottom: calc(84px + env(safe-area-inset-bottom, 0px)) }
+/* Bottom bars: selected verses, and reading aloud (above it when both show). --bar-b is how far they sit from the
+   bottom (more on phones, where the menu is there); --sb-h is the selected-verses bar's own height, set by the page. */
+.share-bar, .sp-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--bar-b, 12px) + env(safe-area-inset-bottom, 0px)); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: min(720px, calc(100% - 24px)); padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--fg); box-shadow: 0 10px 30px rgba(0, 0, 0, .2); font-size: .88rem }
+.sp-bar.lift { bottom: calc(var(--bar-b, 12px) + var(--sb-h, 64px) + 8px + env(safe-area-inset-bottom, 0px)) }
 .share-bar input { flex: 1 1 220px; min-width: 0; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px }
 .share-bar button, .sp-bar button { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); font-weight: 500 }
 #sb-copy, #sb-share, #sp-pause { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
@@ -427,6 +453,14 @@ html.modal-open { overflow: hidden }
 /* Languages on the Flows page and in the popup; the Flows search row stays in reach while scrolling. */
 .f-langs, .tp-langs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px }
 #flows > .filters:first-of-type { position: sticky; top: calc(62px + env(safe-area-inset-top, 0px)); z-index: 6; background: var(--bg); padding: 8px 0; margin-top: -8px }
+/* On phones only the search box stays in reach: the category chips and the two pickers scroll away with the page.
+   Pinned together they took more than a third of the screen, and the menu along the bottom takes its share too. */
+.f-pin { display: contents }
+@media (max-width: 760px) {
+  #flows > .filters:first-of-type { display: contents }
+  #flows > .filters:first-of-type > * { margin-bottom: 10px }
+  #flows .f-pin { display: block; position: sticky; top: calc(62px + env(safe-area-inset-top, 0px)); z-index: 6; background: var(--bg); padding: 8px 0; margin: -8px 0 2px }
+}
 /* Loading a flow's verses, favourites, a topic: a small spinner with the words. */
 .v-load { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .9rem; margin: 6px 0 }
 .v-load .qf-loader { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--gold) 22%, transparent); border-top-color: var(--gold); animation: qf-spin .8s linear infinite }

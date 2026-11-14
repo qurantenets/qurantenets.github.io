@@ -295,8 +295,9 @@
   function syncBars() {
     const host = document.querySelector('dialog[open]') || document.body, sb = document.getElementById('share-bar'), sp = document.getElementById('sp-bar');
     for (const b of [sb, sp]) if (b && b.parentNode !== host) host.appendChild(b);
-    if (sp && sb) sp.classList.toggle('lift', !sb.hidden);
+    if (sp && sb) { sp.classList.toggle('lift', !sb.hidden); if (!sb.hidden) sp.style.setProperty('--sb-h', sb.offsetHeight + 'px'); }
   }
+  addEventListener('resize', syncBars);
   function drawShareBar() {
     const bar = document.getElementById('share-bar'); if (!bar) return;
     bar.hidden = !picked.size;
