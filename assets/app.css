@@ -546,3 +546,4 @@ html.modal-open { overflow: hidden }
 @media (max-width: 560px) { .pg-list li { grid-template-columns: minmax(0, 1fr) auto; } .pg-bar { grid-column: 1 / -1; order: 3 } .pg-q { grid-column: 2 } }
 .qz-top > span:not(.qz-dots) { white-space: nowrap }
 @media (max-width: 420px) { .qz-dots { gap: 3px } .qz-dots i { width: 7px; height: 7px } }
+.visits { font: 500 .8rem var(--mono); color: var(--muted) }

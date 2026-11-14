@@ -664,6 +664,26 @@
     else if (e.key === 'Escape' && !dlg.hidden) { closeSearch(); }
   });
 
+  /* ---------- visit count (footer) ----------
+     Once a day this browser adds one to the total (counter/ in the repo: a number per day, nothing about the
+     visitor); the total is remembered here, so other pages that day show it without asking again. */
+  const visitsEl = document.getElementById('visits');
+  // Only the published site counts (the counter refuses anything else), so local previews send nothing.
+  const countHere = location.origin === 'https://qurantenets.github.io' || window.QF_COUNT_HERE === true; // the checks use a stand-in
+  if (window.QF.counter && visitsEl && window.fetch && countHere) {
+    const today = new Date().toISOString().slice(0, 10), counted = store.get('qf-counted', ''), known = store.get('qf-visits', null);
+    const showVisits = d => {
+      if (!d || !d.total) return;
+      const since = d.since ? new Date(`${d.since}T00:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '';
+      visitsEl.textContent = `${Number(d.total).toLocaleString()} visit${d.total === 1 ? '' : 's'}${since ? ` since ${since}` : ''}`; visitsEl.hidden = false;
+    };
+    showVisits(known);
+    if (counted !== today) {
+      fetch(window.QF.counter + 'hit', { method: 'POST', mode: 'cors', credentials: 'omit' })
+        .then(r => (r.ok ? r.json() : null)).then(d => { if (d) { store.set('qf-counted', today); store.set('qf-visits', d); showVisits(d); } }).catch(() => {});
+    }
+  }
+
   // What the Quiz page's own script (assets/quiz.js, loaded there only) uses from this one.
   window.QF.api = { getJSON, qmap, flowText, esc, store, rng, LOADING, markHard, wantLangs, toast, track, favs };
 
