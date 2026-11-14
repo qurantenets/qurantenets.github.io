@@ -11,7 +11,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Literata:opsz,wght@7..72,400;7..72,600&family=Marcellus&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Tamil:wght@400&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=667df385af">
+<link rel="stylesheet" href="/assets/app.css?v=990c2adca7">
 <script>try{var t=localStorage.getItem('qf-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body data-kind="home" data-base="/">
@@ -40,9 +40,10 @@
   </nav>
   <div class="panel" id="flows">
     <div class="filters">
+      <div class="cats" id="f-cats" role="group" aria-label="Show only these categories"></div>
       <div class="f-tags" id="f-tags"><span class="f-chips" id="f-chips"></span><input id="f-q" type="search" placeholder="Add topics, or search text or a verse like 2:255" autocomplete="off" aria-label="Add topics or search" aria-autocomplete="list" aria-controls="f-ac"><ul class="f-ac" id="f-ac" role="listbox" hidden></ul></div>
       <label class="f-surah">Surah <select id="f-surah"><option value="">All surahs</option></select></label>
-      <label class="f-surah f-groupby">Group by <select id="f-group"><option value="">None</option><option value="topic">Topic</option><option value="surah">Surah</option></select></label>
+      <label class="f-surah f-groupby">Group by <select id="f-group"><option value="">None</option><option value="topic">Topic</option><option value="surah">Surah</option><option value="cat">Category</option></select></label>
       <button type="button" class="f-clear" id="f-clear" hidden>Clear all filters</button>
     </div>
     <div class="filters">
@@ -60,6 +61,7 @@
   </div>
   <div class="panel" id="topics" hidden>
     <p class="note">The bigger the bubble, the more verses carry that name. Choose one to see every passage on it.</p>
+    <div class="cats" id="t-cats" role="group" aria-label="Show only these categories"></div>
     <div class="bubbles" id="bubbles"></div>
     <div class="tl-bar">
       <div class="seg" role="group" aria-label="Show topics"><button type="button" data-tview="all" aria-pressed="true">All topics</button><button type="button" data-tview="surah" aria-pressed="false">By surah</button></div>
@@ -119,6 +121,6 @@
   <ol class="results" id="results"></ol>
 </div>
 <script>window.QF={base:"/",ga:"G-0FG3FEVN0J"};</script>
-<script src="/assets/app.js?v=667df385af" defer></script>
+<script src="/assets/app.js?v=990c2adca7" defer></script>
 </body>
 </html>

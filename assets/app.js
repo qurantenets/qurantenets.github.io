@@ -572,7 +572,7 @@
     fd.checked = store.get('qf-desc', false); fc.checked = store.get('qf-count', true);
     // Group by: none, topic or surah. An older "Group by topic" tick carries over as Topic.
     fg.value = store.get('qf-groupby', store.get('qf-group', false) === true ? 'topic' : '');
-    if (!['', 'topic', 'surah'].includes(fg.value)) fg.value = '';
+    if (!['', 'topic', 'surah', 'cat'].includes(fg.value)) fg.value = '';
     const fclear = $('#f-clear');
     const applyView = () => { table.classList.toggle('hide-desc', !fd.checked); table.classList.toggle('hide-count', !fc.checked); };
     applyView();
@@ -589,11 +589,12 @@
     // A topic heading, used when "Group by topic" is on: the topic's name (a link to its page) and its totals.
     const groupHTML = g => (g.surah
       ? `<li class="fl-group" data-surah="${g.surah}"><a href="${BASE}surah/${g.surah}/"><span class="fl-group-no">${g.surah}</span>${esc(g.name)}</a>`
-      : `<li class="fl-group" data-slug="${g.slug}"><a href="${BASE}topic/${g.slug}/">${esc(g.name)}</a>`) +
+      : g.cat !== undefined ? `<li class="fl-group" data-cat="${g.cat}"><span class="cat-name"><i class="cat-dot"></i>${esc(g.name)}</span>`
+      : `<li class="fl-group" data-slug="${g.slug}"><a href="${BASE}topic/${g.slug}/"><i class="cat-dot" data-cat="${catOf(g.slug)}"></i>${esc(g.name)}</a>`) +
       `<span class="fl-group-n">${g.n} flow${g.n === 1 ? '' : 's'} · ${g.v} verse${g.v === 1 ? '' : 's'}</span></li>`;
     const itemHTML = x => (Array.isArray(x) ? rowHTML(x) : groupHTML(x));
     function rowHTML(f) {
-      return `<li class="fl" id="f-${f[1]}-${f[2]}" data-s="${f[1]}" data-a="${f[2]}" data-b="${f[3]}" data-slug="${f[5]}"><span class="c-no">${f[0]}</span>` +
+      return `<li class="fl" id="f-${f[1]}-${f[2]}" data-s="${f[1]}" data-a="${f[2]}" data-b="${f[3]}" data-slug="${f[5]}" data-cat="${catOf(f[5])}"><span class="c-no">${f[0]}</span>` +
         `<div class="fl-main"><button class="fl-open" type="button" aria-expanded="false"><span class="fl-name">${esc(f[4])}</span></button>${f[6] ? `<p class="fl-desc">${esc(f[6])}</p>` : ''}</div>` +
         `<span class="c-rg">${rng(f[1], f[2], f[3])}</span><a class="c-surah" href="${BASE}surah/${f[1]}/">${esc(surahName(f[1]))}</a><span class="c-n">${f[3] - f[2] + 1}</span><div class="fl-verses" hidden></div></li>`;
     }
@@ -650,17 +651,17 @@
       const gb = fg.value;
       table.classList.toggle('grouped', gb === 'topic'); // under a topic heading the rows don't repeat the topic's name
       table.classList.toggle('no-surah', gb === 'surah'); // nor the surah's under a surah heading
-      fclear.hidden = !(q || s || t.length || sort.key !== 'no' || sort.dir !== 1);
+      fclear.hidden = !(q || s || t.length || cats.size || sort.key !== 'no' || sort.dir !== 1);
       list.innerHTML = skeleton(8); shown = 0; kb = -1;
       const ref = q.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
-      if (!q && !t.length && sort.key === 'no' && sort.dir === 1 && !gb) {
+      if (!q && !t.length && !cats.size && sort.key === 'no' && sort.dir === 1 && !gb) {
         const sp = s ? meta.span[String(s)] : [0, meta.flows - 1];
         source = sp ? streamSource(sp[0], sp[1]) : arraySource([]);
         const n = s ? (sp ? sp[1] - sp[0] + 1 : 0) : meta.flows;
         total.textContent = s ? `${n} flow${n === 1 ? '' : 's'} in ${surahName(s)}` : `${meta.flows.toLocaleString()} flows · ${meta.verses.toLocaleString()} verses`;
       } else {
         const data = await loadAll(); if (my !== gen) return;
-        let r = data.filter(f => (!s || f[1] === s) && (!t.length || sel.has(f[5])));
+        let r = data.filter(f => (!s || f[1] === s) && (!t.length || sel.has(f[5])) && inCats(f[5]));
         if (ref) { const S = +ref[1], V = +ref[2]; r = r.filter(f => f[1] === S && f[2] <= V && f[3] >= V); }
         else if (q) { const w = norm(q).split(' '); r = r.filter(f => { const h = norm(`${f[4]} ${f[6]} ${surahName(f[1])}`); return w.every(x => h.includes(x)); }); }
         const key = { no: f => f[0], name: f => f[4].toLowerCase(), count: f => f[3] - f[2] + 1, surah: f => f[1] * 10000 + f[2] }[sort.key];
@@ -670,14 +671,16 @@
           /* Group by topic or by surah: every flow of a group together under one heading, groups in the order
              they first appear in the current list (reading order by default, A-Z when sorted by topic), flows
              inside a group keeping the current order. Only what the filters leave is grouped. */
-          const groups = new Map(), byTopic = gb === 'topic';
+          const groups = new Map(), byTopic = gb === 'topic', byCat = gb === 'cat';
+          const catName = id => (meta.cats.find(c => c[0] === id) || [id, 'No category'])[1];
           for (const f of r) {
-            const k = byTopic ? f[5] : f[1];
-            if (!groups.has(k)) groups.set(k, byTopic ? { slug: f[5], name: f[4], n: 0, v: 0, flows: [] } : { surah: f[1], name: surahName(f[1]), n: 0, v: 0, flows: [] });
+            const k = byTopic ? f[5] : byCat ? catOf(f[5]) : f[1];
+            if (!groups.has(k)) groups.set(k, byTopic ? { slug: f[5], name: f[4], n: 0, v: 0, flows: [] } : byCat ? { cat: k, name: catName(k), n: 0, v: 0, flows: [] } : { surah: f[1], name: surahName(f[1]), n: 0, v: 0, flows: [] });
             const g = groups.get(k); g.n++; g.v += f[3] - f[2] + 1; g.flows.push(f);
           }
           source = arraySource([...groups.values()].flatMap(g => [g, ...g.flows]));
-          total.textContent = `${groups.size} ${byTopic ? 'topic' : 'surah'}${groups.size === 1 ? '' : 's'} · ${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
+          const unit = byTopic ? ['topic', 'topics'] : byCat ? ['category', 'categories'] : ['surah', 'surahs'];
+          total.textContent = `${groups.size} ${unit[groups.size === 1 ? 0 : 1]} · ${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
         } else {
           source = arraySource(r);
           total.textContent = `${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
@@ -696,6 +699,7 @@
       const st = store.get('qf-filter', {});
       if (st.s && fs.querySelector(`option[value="${st.s}"]:not([disabled])`)) fs.value = st.s;
       m.topics.forEach(t => topicBy.set(t[0], t));
+      cats = new Set(store.get('qf-cats', []).filter(id => (m.cats || []).some(c => c[0] === id))); drawCatChips();
       store.get('qf-topics', []).forEach(x => { if (topicBy.has(x)) sel.add(x); }); if (st.t && topicBy.has(st.t)) sel.add(st.t);
       drawChips();
       show(VIEW);
@@ -705,6 +709,26 @@
     /* Topic chips: pick several topics; the list shows flows under any of them. Typed text that is not
        picked stays a text search (names, descriptions, surah names) or a verse reference like 2:255. */
     const sel = new Set(), topicBy = new Map();
+    /* Categories (data/categories.json): every topic and flow coloured by one, and a filter shared by Topics and
+       Flows: pick one or more, none picked shows all. */
+    let cats = new Set();
+    const catOf = slug => { const t = topicBy.get(slug), c = t && meta.cats ? meta.cats[t[5]] : null; return c ? c[0] : ''; };
+    const inCats = slug => !cats.size || cats.has(catOf(slug));
+    function drawCatChips() {
+      if (!meta || !meta.cats) return;
+      const tot = new Map(); meta.topics.forEach(t => { const c = meta.cats[t[5]]; if (c) tot.set(c[0], (tot.get(c[0]) || 0) + t[3]); });
+      const html = `<button type="button" class="cats-all" data-cat-f="" aria-pressed="${!cats.size}">All</button>` +
+        meta.cats.map(([id, name]) => `<button type="button" data-cat="${id}" data-cat-f="${id}" aria-pressed="${cats.has(id)}" title="${(tot.get(id) || 0).toLocaleString()} verses"><i class="cat-dot"></i>${esc(name)}<small>${(tot.get(id) || 0).toLocaleString()}</small></button>`).join('');
+      $$('.cats').forEach(b => { b.innerHTML = html; });
+    }
+    document.addEventListener('click', e => {
+      const b = e.target.closest('[data-cat-f]'); if (!b || !meta) return;
+      const id = b.dataset.catF;
+      if (!id) cats.clear(); else if (cats.has(id)) cats.delete(id); else cats.add(id);
+      store.set('qf-cats', [...cats]); drawCatChips();
+      if (!$('#topics').hidden) drawTopics(true);
+      if (!$('#flows').hidden) apply();
+    });
     let acSel = -1, acOpts = [];
     function drawChips() {
       fchips.innerHTML = [...sel].map(slug => { const t = topicBy.get(slug); return t ? `<span class="f-chip">${esc(t[1])}<small>${t[3]}</small><button type="button" data-unchip="${slug}" aria-label="Remove ${esc(t[1])}">×</button></span>` : ''; }).join('');
@@ -734,7 +758,7 @@
     fg.addEventListener('change', () => { store.set('qf-groupby', fg.value); apply(); });
     // Clear all filters (also Esc): search, topic chips, surah and sort back to the start. Display choices stay.
     function clearFilters() {
-      fq.value = ''; fs.value = ''; sel.clear(); drawChips(); fac.hidden = true;
+      fq.value = ''; fs.value = ''; sel.clear(); drawChips(); fac.hidden = true; cats.clear(); store.set('qf-cats', []); drawCatChips();
       sort = { key: 'no', dir: 1 };
       $$('[data-sort]', table).forEach(x => x.setAttribute('aria-sort', x.dataset.sort === 'no' ? 'ascending' : 'none'));
       apply();
@@ -776,7 +800,7 @@
     const SORTS = { v: (a, b) => b.v - a.v || byName(a, b), vasc: (a, b) => a.v - b.v || byName(a, b), az: byName, read: (a, b) => a.first - b.first };
     const order = arr => arr.slice().sort(SORTS[tsort]);
     // meta.topics: [slug, name, flows, verses, number of the topic's first flow], so every sort works without more data
-    const allTopics = () => order(meta.topics.map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3], first: t[4] || 0 })));
+    const allTopics = () => order(meta.topics.filter(t => inCats(t[0])).map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3], first: t[4] || 0 })));
     let surahTopics = null; // surah -> [{slug, name, n, v, first}], from data/bysurah.json on first use
     async function loadSurahTopics() {
       if (surahTopics) return surahTopics;
@@ -786,7 +810,7 @@
     }
     async function drawTopicList() {
       const ts = allTopics();
-      $('#topic-list').innerHTML = ts.map(t => `<li><a href="${BASE}topic/${t.slug}/" data-topic="${t.slug}">${esc(t.name)}</a><span>${t.v}</span></li>`).join('');
+      $('#topic-list').innerHTML = ts.map(t => `<li data-cat="${catOf(t.slug)}"><a href="${BASE}topic/${t.slug}/" data-topic="${t.slug}"><i class="cat-dot"></i>${esc(t.name)}</a><span>${t.v}</span></li>`).join('');
       $('#tl-count').textContent = `${ts.length} topics`;
     }
     async function drawBySurah() {
@@ -799,7 +823,7 @@
       let html = `<nav class="bs-jump" aria-label="Jump to surah"><span>Jump to</span>${jumps}</nav><p class="bs-key"><i class="w1"></i><i class="w2"></i><i class="w3"></i><i class="w4"></i> darker = more of the surah</p>`;
       for (let s = 1; s <= 114; s++) {
         const ts = per.get(s) || [], tot = ts.reduce((n, t) => n + t.v, 0);
-        const chips = order(ts).map(t => { const sh = t.v / (tot || 1), w = sh >= 0.3 ? 4 : sh >= 0.15 ? 3 : sh >= 0.07 ? 2 : 1; return `<li><button type="button" class="tchip w${w}" data-topic="${t.slug}" data-surah="${s}">${esc(t.name)}<span>${t.v}</span></button></li>`; }).join('');
+        const chips = order(ts.filter(t => inCats(t.slug))).map(t => { const sh = t.v / (tot || 1), w = sh >= 0.3 ? 4 : sh >= 0.15 ? 3 : sh >= 0.07 ? 2 : 1; return `<li><button type="button" class="tchip w${w}" data-topic="${t.slug}" data-surah="${s}"><i class="cat-dot" data-cat="${catOf(t.slug)}"></i>${esc(t.name)}<span>${t.v}</span></button></li>`; }).join('');
         html += `<section class="bs" id="bs-${s}"><div class="bs-head"><a class="bs-name" href="${BASE}surah/${s}/"><span class="bs-no">${s}</span>${esc(surahName(s))}</a><span class="bs-meta">${ts.length} topic${ts.length === 1 ? '' : 's'} · ${tot} verses</span></div><ul class="bs-chips">${chips}</ul></section>`;
       }
       box.innerHTML = html;
@@ -836,6 +860,8 @@
       if (pop.contains(speech.el)) speech.stop();
       popCur = { slug, surah };
       $('#tp-title').textContent = surah ? `${t[1]} in ${surahName(surah)}` : t[1];
+      const tc = meta.cats && meta.cats[t[5]];
+      $('.tp-eyebrow', pop).innerHTML = tc ? `Topic · <span class="cat-name" data-cat="${tc[0]}">${esc(tc[1])}</span>` : 'Topic';
       $('#tp-meta').textContent = `${flows.length} flow${flows.length === 1 ? '' : 's'} · ${v} verse${v === 1 ? '' : 's'}` + (surah ? '' : ` · ${new Set(all.map(f => f[1])).size} surahs`);
       const allBtn = $('#tp-all');
       allBtn.hidden = !surah || all.length === flows.length;
@@ -910,10 +936,10 @@
     });
 
     let drawn = false;
-    function drawTopics() {
-      if (!meta) { metaP.then(drawTopics); return; }
-      const topics = meta.topics.map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3] })).sort((a, b) => b.v - a.v);
-      if (!drawn) { drawTopicsView(); drawn = true; }
+    function drawTopics(again) {
+      if (!meta) { metaP.then(() => drawTopics()); return; }
+      const topics = meta.topics.filter(t => inCats(t[0])).map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3], cat: catOf(t[0]) })).sort((a, b) => b.v - a.v);
+      if (!drawn || again) { drawTopicsView(); drawn = true; }
       const box = $('#bubbles');
       /* Apple Watch style field: one packed layout (biggest topics in the middle, sized by verse count),
          dragged, swiped or scrolled around. Bubbles shrink and bunch up toward the edge (a tanh lens), so the
@@ -924,6 +950,8 @@
         if (box._qf) box._qf.abort(); // a redraw (theme change) replaces the old listeners, never adds to them
         const ac = box._qf = new AbortController(), on = (t, f, o) => box.addEventListener(t, f, { ...o, signal: ac.signal });
         const cs = getComputedStyle(document.documentElement), c = k => cs.getPropertyValue(k).trim();
+        // a category's strong colour or its tint ('-t'); a topic without one keeps the old green and soft fill
+        const cc = (cat, t) => (cat ? c(`--c-${cat}${t}`) : t ? c('--soft') : c('--accent'));
         const W = 1500, root = window.d3.hierarchy({ children: topics }).sum(d => Math.max(d.v, 8)); // a floor keeps 1-7 verse topics tappable; the label shows the real count
         window.d3.pack().size([W, W]).padding(5)(root);
         const leaves = root.leaves(), max = Math.max(...leaves.map(l => l.r));
@@ -972,10 +1000,10 @@
           const g = document.createElementNS(ns, 'g'); g.setAttribute('class', 'bub'); g.dataset.slug = l.data.slug;
           g.style.setProperty('--sh', `${y(sh)}px`); // re-centres the name when the count is hidden
           g.innerHTML = `<title>${esc(l.data.name)}: ${l.data.v} verses in ${l.data.n} flows</title>` +
-            `<circle r="${l.r.toFixed(1)}" fill="${big ? c('--accent') : c('--soft')}" stroke="${c('--gold')}" stroke-width="${big ? 0 : 1.2}"></circle>` +
-            `<text class="bn" text-anchor="middle" font-size="${fs.toFixed(2)}" fill="${big ? c('--accent-ink') : c('--fg')}">` +
+            `<circle r="${l.r.toFixed(1)}" fill="${big ? cc(l.data.cat, '') : cc(l.data.cat, '-t')}" stroke="${cc(l.data.cat, '')}" stroke-width="${big ? 0 : 1.2}"></circle>` +
+            `<text class="bn" text-anchor="middle" font-size="${fs.toFixed(2)}" fill="${big ? c('--cat-ink') : c('--fg')}">` +
             lines.map((t, i) => `<tspan x="0" y="${y(top + ASC + i * LH)}">${esc(t)}</tspan>`).join('') + '</text>' +
-            `<text class="bc" text-anchor="middle" x="0" y="${y(top + body + CG + CS * ASC)}" font-size="${(fs * CS).toFixed(2)}" fill="${big ? c('--accent-ink') : c('--muted')}">${count}</text>`;
+            `<text class="bc" text-anchor="middle" x="0" y="${y(top + body + CG + CS * ASC)}" font-size="${(fs * CS).toFixed(2)}" fill="${big ? c('--cat-ink') : c('--muted')}">${count}</text>`;
           svg.appendChild(g);
           return { l, g, fs, sc: 0 };
         });

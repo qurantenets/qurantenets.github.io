@@ -7,14 +7,27 @@
   --arabic: "Amiri Quran", "Amiri", "Noto Naskh Arabic", serif; --tamil: "Noto Sans Tamil", var(--body);
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   --measure: 74ch; --r: 10px;
+  /* Topic categories (data/categories.json): a strong colour and a light tint each; white reads on every strong one. */
+  --c-faith: #0f6b63; --c-faith-t: #d8ece8; --c-prophets: #9a5b12; --c-prophets-t: #f3e4cc;
+  --c-worship: #3d6e1f; --c-worship-t: #e0ecd3; --c-life: #24578f; --c-life-t: #dbe6f2;
+  --c-hereafter: #5e4596; --c-hereafter-t: #e6def3; --c-warnings: #a3291c; --c-warnings-t: #f5dcd8;
+  --c-events: #6a5844; --c-events-t: #ebe3d8; --cat-ink: #ffffff;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #111815; --surface: #17201c; --raise: #1c2722; --fg: #e9e6dc; --muted: #a6ad9f; --line: #2a3530;
-  --accent: #7fc4a4; --accent-ink: #0d1612; --gold: #d6b35c; --soft: #1f3229; --focus: #7fc4a4; color-scheme: dark } }
+  --accent: #7fc4a4; --accent-ink: #0d1612; --gold: #d6b35c; --soft: #1f3229; --focus: #7fc4a4; color-scheme: dark;
+  --c-faith: #6cc5b9; --c-faith-t: #183a35; --c-prophets: #e0a75a; --c-prophets-t: #3a2c18;
+  --c-worship: #9ccc72; --c-worship-t: #24331a; --c-life: #84b2e6; --c-life-t: #1b2c40;
+  --c-hereafter: #b7a0e6; --c-hereafter-t: #2c2442; --c-warnings: #ee8f84; --c-warnings-t: #42201c;
+  --c-events: #c9b39a; --c-events-t: #332b22; --cat-ink: #10140f } }
 :root[data-theme="dark"] {
   --bg: #111815; --surface: #17201c; --raise: #1c2722; --fg: #e9e6dc; --muted: #a6ad9f; --line: #2a3530;
-  --accent: #7fc4a4; --accent-ink: #0d1612; --gold: #d6b35c; --soft: #1f3229; --focus: #7fc4a4; color-scheme: dark }
+  --accent: #7fc4a4; --accent-ink: #0d1612; --gold: #d6b35c; --soft: #1f3229; --focus: #7fc4a4; color-scheme: dark;
+  --c-faith: #6cc5b9; --c-faith-t: #183a35; --c-prophets: #e0a75a; --c-prophets-t: #3a2c18;
+  --c-worship: #9ccc72; --c-worship-t: #24331a; --c-life: #84b2e6; --c-life-t: #1b2c40;
+  --c-hereafter: #b7a0e6; --c-hereafter-t: #2c2442; --c-warnings: #ee8f84; --c-warnings-t: #42201c;
+  --c-events: #c9b39a; --c-events-t: #332b22; --cat-ink: #10140f }
 
 *, *::before, *::after { box-sizing: border-box }
 html { -webkit-text-size-adjust: 100% }
@@ -445,3 +458,25 @@ html.modal-open { overflow: hidden }
 .lk-out { flex: 1 0 100% }
 .lk-out:empty { display: none }
 .lk-res { margin: 4px 0 10px }
+/* Categories: each element with data-cat gets its colour as --cat / --cat-t. */
+[data-cat="faith"] { --cat: var(--c-faith); --cat-t: var(--c-faith-t) }
+[data-cat="prophets"] { --cat: var(--c-prophets); --cat-t: var(--c-prophets-t) }
+[data-cat="worship"] { --cat: var(--c-worship); --cat-t: var(--c-worship-t) }
+[data-cat="life"] { --cat: var(--c-life); --cat-t: var(--c-life-t) }
+[data-cat="hereafter"] { --cat: var(--c-hereafter); --cat-t: var(--c-hereafter-t) }
+[data-cat="warnings"] { --cat: var(--c-warnings); --cat-t: var(--c-warnings-t) }
+[data-cat="events"] { --cat: var(--c-events); --cat-t: var(--c-events-t) }
+.timeline .fl[data-cat]:not([data-cat=""]) { box-shadow: inset 3px 0 0 var(--cat) }
+.cat-dot { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--cat, var(--line)); margin-right: 7px; vertical-align: 1px }
+.cat-name { color: var(--cat); font-weight: 600 }
+.topic-list li a { display: inline-flex; align-items: baseline }
+/* The category filter: pick one or more; none picked shows everything. */
+.cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px }
+.cats:empty { display: none }
+.cats button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: .82rem; color: var(--fg); white-space: nowrap }
+.cats button small { font: 500 .72rem var(--mono); color: var(--muted); margin-left: 5px }
+.cats button:hover { border-color: var(--cat, var(--accent)) }
+.cats button[aria-pressed="true"] { background: var(--cat-t, var(--soft)); border-color: var(--cat, var(--accent)); font-weight: 600 }
+.cats button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.cats .cats-all .cat-dot { display: none }
+#flows .cats { flex: 1 0 100%; margin: 0 }
