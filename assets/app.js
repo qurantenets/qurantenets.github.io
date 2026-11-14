@@ -13,8 +13,12 @@
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
+    // A saved value of the wrong shape (edited by hand, or left by an older version) counts as nothing saved.
+    arr(k) { const v = store.get(k, []); return Array.isArray(v) ? v : []; },
+    obj(k) { const v = store.get(k, {}); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; },
   };
   const rng = (s, a, b) => a === b ? `${s}:${a}` : `${s}:${a}–${b}`;
+  const pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`; // "1 verse", "2 verses"
   const LOADING = msg => `<p class="v-load" role="status"><span class="qf-loader" aria-hidden="true"></span>${esc(msg)}</p>`;
 
   /* ---------- data ---------- */
@@ -86,16 +90,17 @@
   if (consent === 'accepted') loadGA(); else if (!consent && banner) banner.hidden = false;
   $$('[data-consent]').forEach(b => b.addEventListener('click', () => {
     try { localStorage.setItem('cookieConsent', b.dataset.consent); } catch (e) { /* ignore */ }
-    banner.hidden = true;
+    banner.hidden = true; syncBars();
     if (b.dataset.consent === 'accepted') loadGA();
   }));
   $$('[data-consent-reset]').forEach(b => b.addEventListener('click', () => {
     try { localStorage.removeItem('cookieConsent'); } catch (e) { /* ignore */ }
+    setTimeout(syncBars); // once the notice is back on screen the bars move above it
     banner.hidden = false;
   }));
 
   /* ---------- display languages ---------- */
-  let langs = store.get('qf-langs', { ar: false, en: true, ta: true }); // English and Tamil unless the reader chose otherwise
+  let langs = (st => { const l = { ar: false, en: true, ta: true }; for (const k of Object.keys(l)) if (typeof st[k] === 'boolean') l[k] = st[k]; return l.ar || l.en || l.ta ? l : { ar: false, en: true, ta: true }; })(store.obj('qf-langs')); // English and Tamil unless the reader chose otherwise
   const syncLangBoxes = () => $$('[data-lang]').forEach(cb => { cb.checked = !!langs[cb.dataset.lang]; });
   syncLangBoxes();
   $$('[data-lang]').forEach(cb => cb.addEventListener('change', () => {
@@ -156,6 +161,15 @@
     /* Pause keeps the rest of the reading and resumes from the verse it was on (browsers pause unreliably, some
        not at all on phones, so pausing stops and remembers instead). The bar at the bottom shows it all. */
     paused: null, btn: null, strikes: {},
+    // A line that has left the page, or sits in a part that is hidden now, is not read: nobody could see what is read.
+    live: el => el.isConnected && el.getClientRects().length > 0,
+    drop(root) { // whatever is being read, or waiting its turn, inside root ends here
+      if (!root) return;
+      if (speech.el && root.contains(speech.el)) { speech.stop(); return; }
+      speech.queue = speech.queue.filter(el => !root.contains(el));
+      const p = speech.paused; if (!p) return;
+      if (!p.rest.length || root.contains(p.rest[0])) { speech.paused = null; speech.bar(); } else p.rest = p.rest.filter(el => !root.contains(el));
+    },
     ref: el => ((el && $('sup', el)) || {}).textContent || '',
     pause() {
       if (!speech.el) return;
@@ -164,7 +178,9 @@
     },
     resume() {
       const p = speech.paused; if (!p) return;
-      speech.say(p.rest.filter(el => document.contains(el)), p.btn && document.contains(p.btn) ? p.btn : null);
+      const rest = p.rest.filter(el => speech.live(el));
+      if (!rest.length) { speech.paused = null; speech.bar(); return; }
+      speech.say(rest, p.btn && document.contains(p.btn) ? p.btn : null);
     },
     bar() {
       const b = document.getElementById('sp-bar'); if (!b) return;
@@ -181,7 +197,7 @@
       const next = () => {
         if (my !== speech.gen) return;
         if (speech.el) speech.unmark(speech.el);
-        const el = speech.queue.shift();
+        let el = speech.queue.shift(); while (el && !speech.live(el)) el = speech.queue.shift();
         if (!el) { speech.el = null; speech.bar(); if (allBtn) { allBtn.setAttribute('aria-pressed', 'false'); allBtn.innerHTML = `${ICON_SPEAK} ${allBtn.dataset.readLabel}`; } return; }
         const lang = el.dataset.speak, voice = speech.voice(lang);
         if (!voice) { speech.notice(el, lang, 'none'); next(); return; }
@@ -254,7 +270,8 @@
   }
 
   /* ---------- picking verses to copy or share, and favourites (kept in this browser only) ---------- */
-  const favs = new Set(store.get('qf-favs', [])), picked = new Set();
+  const favs = new Set(store.arr('qf-favs').filter(r => typeof r === 'string' && /^\d+:\d+$/.test(r))), picked = new Set();
+  const pickedIn = new Map(); // verse -> the popup it was picked in (null: on the page itself)
   const MAIL = 'qurantenets@gmail.com';
   function verseTools(s, v) { // opens a verse block: its reference, a box to pick it, and a star to keep it
     const r = `${s}:${v}`, f = favs.has(r);
@@ -275,10 +292,13 @@
     return `<a href="mailto:${MAIL}?subject=${encodeURIComponent(`Correction: ${r} ${nm}`)}&body=${encodeURIComponent(body)}">Suggest a correction</a>`;
   }
   const refKey = r => { const [s, v] = r.split(':').map(Number); return s * 1000 + v; };
-  const favCount = () => { const n = document.getElementById('fav-n'); if (n) n.textContent = favs.size ? ` ${favs.size}` : ''; };
+  const favCount = () => { const n = document.getElementById('fav-n'); if (n) n.textContent = favs.size ? ` ${favs.size}` : '';
+    const fp = document.getElementById('fav-pop'), pm = document.getElementById('fav-meta'); // the open list's own count follows
+    if (fp && fp.open && pm) pm.textContent = favs.size ? `${favs.size} verse${favs.size === 1 ? '' : 's'}` : '';
+  };
   favCount();
   // The message, then each picked verse in the languages chosen, then links to the surahs. Built from the text files,
-  // not the screen, so a verse picked in a popup that has since closed is still sent. Picking a verse loads its
+  // not the screen, so a verse whose flow has since been closed is still sent. Picking a verse loads its
   // surah's text (see primeText), so this finishes straight away and the browser still counts it as the tap.
   const wantLangs = () => ['ar', 'en', 'ta'].filter(l => langs[l]);
   const primeText = r => { const [s, v] = r.split(':').map(Number); wantLangs().forEach(l => verseText(l, s, v).catch(() => {})); };
@@ -296,6 +316,13 @@
     const host = document.querySelector('dialog[open]') || document.body, sb = document.getElementById('share-bar'), sp = document.getElementById('sp-bar');
     for (const b of [sb, sp]) if (b && b.parentNode !== host) host.appendChild(b);
     if (sp && sb) { sp.classList.toggle('lift', !sb.hidden); if (!sb.hidden) sp.style.setProperty('--sb-h', sb.offsetHeight + 'px'); }
+    // On the page the bars float over its end, so the page keeps that much room under itself (--bars-h) and nothing
+    // is left beneath them; the cookie notice, while it is up, lifts them above itself (--bar-lift). In a popup they
+    // are part of its layout and need neither.
+    const root = document.documentElement, onPage = host === document.body, note = document.getElementById('consent');
+    root.style.setProperty('--bar-lift', onPage && note && !note.hidden ? `${note.offsetHeight + 8}px` : '0px');
+    const tops = onPage ? [sb, sp].filter(b => b && !b.hidden).map(b => b.getBoundingClientRect().top) : [];
+    root.style.setProperty('--bars-h', tops.length ? `${Math.max(0, Math.round(innerHeight - Math.min(...tops) + 8))}px` : '0px');
   }
   addEventListener('resize', syncBars);
   function drawShareBar() {
@@ -314,7 +341,7 @@
   document.addEventListener('change', e => {
     const cb = e.target.closest('[data-pick]'); if (!cb) return;
     const r = cb.closest('.v').dataset.ref;
-    if (cb.checked) { picked.add(r); primeText(r); } else picked.delete(r);
+    if (cb.checked) { picked.add(r); pickedIn.set(r, cb.closest('dialog')); primeText(r); } else { picked.delete(r); pickedIn.delete(r); }
     $$(`.v[data-ref="${r}"] [data-pick]`).forEach(x => { x.checked = cb.checked; });
     drawShareBar();
   });
@@ -330,29 +357,59 @@
     }
     if (e.target.closest('#sb-copy')) { try { await navigator.clipboard.writeText(await shareText()); toast(`Copied ${picked.size} verse${picked.size === 1 ? '' : 's'}`); } catch (err) { toast('Copying did not work in this browser'); } return; }
     if (e.target.closest('#sb-share')) { try { await navigator.share({ text: await shareText() }); } catch (err) { /* closed without sharing */ } return; }
-    if (e.target.closest('#sb-clear')) { picked.clear(); $$('[data-pick]').forEach(x => { x.checked = false; }); drawShareBar(); return; }
+    if (e.target.closest('#sb-clear')) { picked.clear(); pickedIn.clear(); $$('[data-pick]').forEach(x => { x.checked = false; }); drawShareBar(); return; }
     if (e.target.closest('#sp-pause')) { if (speech.paused) speech.resume(); else speech.pause(); return; }
     if (e.target.closest('#sp-stop')) { speech.stop(); return; }
+    const gone = e.target.closest('[data-fav-drop]'); // a saved verse that does not exist
+    if (gone) { favs.delete(gone.dataset.favDrop); store.set('qf-favs', [...favs]); favCount(); openFavs(); return; }
+    if (e.target.closest('[data-reload]')) { location.reload(); return; }
     if (e.target.closest('[data-open-favs]')) { openFavs(); return; }
     if (e.target.closest('[data-close-favs]')) { document.getElementById('fav-pop').close(); }
   });
-  $$('dialog').forEach(d => d.addEventListener('close', () => { if (d.contains(speech.el)) speech.stop(); setTimeout(syncBars); }));
+  // A selection made inside a popup ends with the popup: nothing picked there is left waiting, unseen, on the page
+  // behind it (where it could ride along in a later Copy). Verses picked on the page itself stay picked.
+  $$('dialog').forEach(d => d.addEventListener('close', () => {
+    speech.drop(d);
+    let n = 0;
+    for (const [r, host] of [...pickedIn]) {
+      if (host !== d) continue;
+      picked.delete(r); pickedIn.delete(r); n++;
+      $$(`.v[data-ref="${r}"] [data-pick]`).forEach(x => { x.checked = false; });
+    }
+    if (n) drawShareBar();
+    const sd = document.getElementById('search'); // the page scrolls again once nothing is open over it
+    if (!document.querySelector('dialog[open]') && (!sd || sd.hidden)) document.documentElement.classList.remove('modal-open');
+    setTimeout(syncBars);
+  }));
+  // A click on the dimmed area around a popup closes it; a click on a gap inside the popup does not.
+  const outside = (d, e) => { if (e.target !== d) return false; const r = d.getBoundingClientRect(); return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom; };
+  { const fp = document.getElementById('fav-pop'); if (fp) fp.addEventListener('click', e => { if (outside(fp, e)) fp.close(); }); }
+  let favGen = 0;
+  // A saved verse that cannot be shown gets a line of its own, so it never hides the others.
+  const favBad = (r, why) => `<p class="v-err fav-bad">${why === 'none'
+    ? `${esc(r)}: there is no such verse. <button type="button" class="ghost" data-fav-drop="${esc(r)}">Remove</button>`
+    : `${esc(r)} could not be loaded. Check your connection, then open Favourites again.`}</p>`;
   async function openFavs() { // favourite verses, in the languages chosen, loading only their surahs' text
     const dlg = document.getElementById('fav-pop'), body = $('#fav-body'); if (!dlg) return;
     const refs = [...favs].sort((x, y) => refKey(x) - refKey(y));
     $('#fav-meta').textContent = refs.length ? `${refs.length} verse${refs.length === 1 ? '' : 's'}` : '';
     body.innerHTML = refs.length ? LOADING('Loading your verses…') : '<p class="v-err">No favourites yet. Tap ☆ beside any verse to keep it here.</p>';
-    if (!dlg.open) dlg.showModal();
+    if (!dlg.open) { dlg.showModal(); document.documentElement.classList.add('modal-open'); }
     syncBars();
     if (!refs.length) return;
     const want = ['ar', 'en', 'ta'].filter(l => langs[l]);
     try {
       // Each verse comes from its own flow's small file (the map says which), all at once.
+      const my = ++favGen, m = await qmap();
       const rows = await Promise.all(refs.map(async r => {
-        const [s, v] = r.split(':').map(Number), [f, ...got] = await Promise.all([flowOf(s, v), ...want.map(l => verseText(l, s, v))]);
+        const [s, v] = r.split(':').map(Number), su = m.su[s - 1];
+        if (!su || !(v >= 1 && v <= su[3])) return { r, bad: 'none' };
+        let f, got;
+        try { [f, ...got] = await Promise.all([flowOf(s, v), ...want.map(l => verseText(l, s, v))]); } catch (e) { return { r, bad: 'load' }; }
         return { s, v, f, t: Object.fromEntries(want.map((l, i) => [l, [got[i]]])) };
       }));
-      body.innerHTML = `<div class="fav-list">${rows.map(({ s, v, f, t }) => verseHTML(s, v, t, 0,
+      if (my !== favGen) return; // the list was asked for again meanwhile
+      body.innerHTML = `<div class="fav-list">${rows.map(({ r, bad, s, v, f, t }) => bad ? favBad(r, bad) : verseHTML(s, v, t, 0,
         `<p class="v-links">${f ? `<a href="${BASE}surah/${s}/#f-${s}-${f.a}">${esc(f.name)} · ${rng(s, f.a, f.b)}</a>` : ''}<a href="${BASE}surah/${s}/">Open surah ${s}</a></p>`)).join('')}</div>`;
       markHard(body);
     } catch (e) { body.innerHTML = `<p class="v-err">The verses could not be loaded (${esc(e.message)}).</p>`; }
@@ -362,13 +419,14 @@
   /* ---------- reading progress (this browser only) ----------
      A flow counts as read when its verses are opened, or when its last verse comes into view in Read through.
      Kept as { surah: [first verse of each flow read] }; the Quiz page shows it surah by surah. */
-  const seen = store.get('qf-seen', {});
+  const seen = store.obj('qf-seen');
   const MILESTONES = [5, 25, 100, 250, 500, 1000, 1658];
   function markSeen(s, a) {
-    const k = String(s), arr = seen[k] || (seen[k] = []);
+    const k = String(s); if (!Array.isArray(seen[k])) seen[k] = [];
+    const arr = seen[k];
     if (arr.includes(a)) return;
     arr.push(a); store.set('qf-seen', seen);
-    const n = Object.values(seen).reduce((x, l) => x + l.length, 0);
+    const n = Object.values(seen).reduce((x, l) => x + (Array.isArray(l) ? l.length : 0), 0);
     if (MILESTONES.includes(n)) toast(`${n.toLocaleString()} flows read. Your progress is on the Quiz page (kept in this browser only).`, 5000);
   }
 
@@ -445,7 +503,7 @@
     const box = $('.fl-verses', li);
     const s = +li.dataset.s, a = +li.dataset.a, b = +li.dataset.b;
     const want = ['ar', 'en', 'ta'].filter(l => langs[l]);
-    box.innerHTML = LOADING('Loading verses…');
+    speech.drop(box); box.innerHTML = LOADING('Loading verses…');
     try {
       const got = await Promise.all(want.map(l => flowText(l, s, a, b))); // this flow's verses only
       const t = Object.fromEntries(want.map((l, i) => [l, got[i]]));
@@ -455,7 +513,7 @@
       const nm = $('.fl-open', li).textContent;
       const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<button type="button" class="v-readall" data-read-all data-read-label="Read this flow aloud">${ICON_SPEAK} Read this flow aloud</button>` : '';
       html += `<div class="v-links">${readAll}<a href="${q}" rel="noopener">Listen and read on quran.com</a><a href="${BASE}surah/${s}/#f-${s}-${a}">Link to this flow</a>${li.dataset.slug ? `<a href="${BASE}topic/${li.dataset.slug}/">Every flow named ${esc(nm)}</a>` : ''}${correctionLink(s, a, b, nm)}</div>`;
-      if (box.contains(speech.el)) speech.stop();
+      speech.drop(box);
       box.innerHTML = html;
       markHard(box);
       markSeen(s, a);
@@ -466,7 +524,7 @@
   function toggle(li, open) {
     const btn = $('.fl-open', li), box = $('.fl-verses', li);
     const willOpen = open !== undefined ? open : box.hidden;
-    if (!willOpen && box.contains(speech.el)) speech.stop(); // closing a flow stops reading it
+    if (!willOpen) speech.drop(box); // closing a flow stops reading it
     box.hidden = !willOpen; li.classList.toggle('open', willOpen); btn.setAttribute('aria-expanded', String(willOpen));
     if (willOpen) { const p = renderVerses(li); track('open_flow', { surah: li.dataset.s, start: li.dataset.a }); return p; }
     return Promise.resolve();
@@ -504,12 +562,12 @@
   const surahSec = document.body.dataset.kind === 'surah' && $('.surah[data-surah]');
   if (surahSec) {
     const S = +surahSec.dataset.surah, readBox = $('#read', surahSec), gotoBox = $('[data-goto]', surahSec);
-    let mode = /^#f-/.test(location.hash) ? 'flows' : location.hash === '#read' ? 'read' : store.get('qf-sview', 'flows'), readP = null, readObs = null;
+    let mode = /^#f-/.test(location.hash) ? 'flows' : location.hash === '#read' ? 'read' : (store.get('qf-sview', 'flows') === 'read' ? 'read' : 'flows'), readP = null, readObs = null;
     const flowRows = () => $$('.timeline .fl', surahSec).map(li => ({ a: +li.dataset.a, b: +li.dataset.b, name: $('.fl-open', li).textContent, slug: li.dataset.slug }));
     async function drawRead() {
       const want = wantLangs(), keep = $$('.v', readBox).find(el => el.getBoundingClientRect().top >= 70); // stay on the same verse after a redraw
       if (!keep) readBox.innerHTML = LOADING('Loading the surah…');
-      if (readBox.contains(speech.el)) speech.stop();
+      speech.drop(readBox);
       try {
         const got = await Promise.all(want.map(l => text(l, S))), t = Object.fromEntries(want.map((l, i) => [l, got[i]]));
         const n = got[0].length, parts = []; let v = 1;
@@ -527,20 +585,20 @@
         $$('.rd-flow[data-flow] > .v:last-child', readBox).forEach(v => readObs.observe(v));
       } catch (e) { readBox.innerHTML = `<p class="v-err">The surah could not be loaded (${esc(e.message)}). Check your connection and try again.</p>`; readP = null; }
     }
-    const setMode = m => {
-      mode = m; store.set('qf-sview', m);
+    const setMode = (m, keep = true) => { // keep: remember it as the reader's own choice
+      mode = m; if (keep) store.set('qf-sview', m);
       surahSec.classList.toggle('reading', m === 'read'); readBox.hidden = m !== 'read';
       $$('[data-sview]', surahSec).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sview === m)));
       if (m === 'read' && !readP) readP = drawRead();
-      if (m !== 'read' && readBox.contains(speech.el)) speech.stop();
+      $$(m === 'read' ? '.flow-table' : '#read', surahSec).forEach(x => speech.drop(x)); // the view now hidden stops being read
       return m === 'read' ? readP : Promise.resolve();
     };
     $$('[data-sview]', surahSec).forEach(b => b.addEventListener('click', () => setMode(b.dataset.sview)));
     document.addEventListener('qf-langs', () => { if (readP) readP = drawRead(); });
-    setMode(mode);
+    setMode(mode, false); // a view a link asked for (#read, or a flow) is shown, not remembered
     // Go to verse: in Flows the flow holding it opens; either way the verse comes into view and is marked.
     async function goTo(v) {
-      if (!(v >= 1 && v <= +gotoBox.max)) return;
+      if (!(Number.isInteger(v) && v >= 1 && v <= +gotoBox.max)) { if (gotoBox.value !== '') toast(`This surah has ${gotoBox.max} verses: choose 1 to ${gotoBox.max}.`); return; }
       if (mode === 'read') await readP;
       else { const li = $$('.timeline .fl', surahSec).find(x => +x.dataset.a <= v && v <= +x.dataset.b); if (!li) return; if (!li.classList.contains('open')) await toggle(li, true); }
       const el = $(`${mode === 'read' ? '#read' : '.timeline'} .v[data-ref="${S}:${v}"]`, surahSec); if (!el) return;
@@ -553,16 +611,46 @@
     let lastGo = 0;
     gotoBox.addEventListener('change', () => { const v = +gotoBox.value; if (v !== lastGo) { lastGo = v; goTo(v); } });
     gotoBox.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); lastGo = +gotoBox.value; goTo(lastGo); } });
+    // A link to one of this surah's flows, or to Read through, followed while the page is already open, is answered
+    // in the view on screen: Read through goes to the flow's first verse instead of leaving for the list.
+    window.addEventListener('hashchange', () => {
+      const f = location.hash.match(/^#f-(\d+)-(\d+)$/);
+      if (f && +f[1] === S && mode === 'read') goTo(+f[2]);
+      else if (location.hash === '#read' && mode !== 'read') setMode('read', false);
+    });
   }
 
   /* ---------- search ---------- */
+  // Surah names typed in Arabic: marks and the lengthening stroke are dropped and the forms of a letter count as one,
+  // so the name is found with or without hamza, with either final letter, and with "surah" in front of it.
+  const hasAr = t => /[\u0600-\u06FF]/.test(t);
+  const arNorm = t => t.normalize('NFC').replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627').replace(/\s+/g, ' ').trim()
+    .replace(/^\u0633\u0648\u0631[\u0629\u0647] /, '').replace(/\u0629/g, '\u0647').replace(/\u0649/g, '\u064A');
   const dlg = $('#search'), q = $('#q'), results = $('#results');
   let sel = -1, items = [];
-  const openSearch = () => { dlg.hidden = false; q.value = ''; results.innerHTML = ''; q.focus(); qmap().catch(() => {}); };
-  const closeSearch = () => { dlg.hidden = true; };
+  let searchFrom = null; // where the reader was, to go back there when the search closes
+  const openSearch = () => {
+    if (dlg.hidden) searchFrom = document.activeElement;
+    dlg.hidden = false; document.documentElement.classList.add('modal-open'); // the page behind does not scroll
+    q.value = ''; results.innerHTML = ''; items = []; sel = -1; q.focus(); qmap().catch(() => {});
+  };
+  const closeSearch = () => {
+    if (dlg.hidden) return;
+    dlg.hidden = true;
+    if (!document.querySelector('dialog[open]')) document.documentElement.classList.remove('modal-open');
+    if (searchFrom && document.contains(searchFrom)) searchFrom.focus({ preventScroll: true });
+    searchFrom = null;
+  };
   $$('[data-open-search]').forEach(b => b.addEventListener('click', openSearch));
   $$('[data-close-search]').forEach(b => b.addEventListener('click', closeSearch));
   dlg.addEventListener('click', e => { if (e.target === dlg) closeSearch(); });
+  dlg.addEventListener('keydown', e => { // Tab stays inside the search while it is open
+    if (e.key !== 'Tab') return;
+    const f = $$('input, button, a[href]', dlg).filter(x => !x.disabled && x.getClientRects().length);
+    if (!f.length) return;
+    const at = document.activeElement, edge = e.shiftKey ? f[0] : f[f.length - 1];
+    if (at === edge || !dlg.contains(at)) { e.preventDefault(); (e.shiftKey ? f[f.length - 1] : f[0]).focus(); }
+  });
   const norm = s => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9: ]+/g, ' ').replace(/\s+/g, ' ').trim();
   const VSIZE = { en: 'about 270 KB', ta: 'about 540 KB' };
   function drawResults(out, busy, offer, verseOffer) {
@@ -571,7 +659,7 @@
     if (verseOffer) items.push({ href: '#', act: `verse-${verseOffer.lang}`, title: `Search the ${verseOffer.lang === 'ta' ? 'Tamil' : 'English'} text of every verse`, meta: '', sub: `Verses with “${verseOffer.q}” · loads ${VSIZE[verseOffer.lang]} once` });
     sel = items.length ? 0 : -1;
     results.innerHTML = (items.length ? items.map((it, i) => it.head ? `<li class="r-head" role="presentation">${esc(it.title)}</li>` : `<li${it.act ? ' class="r-more"' : ''}><a href="${esc(it.href)}"${it.act ? ` data-act="${it.act}"` : ''} aria-selected="${i === sel}"><b>${esc(it.title)}</b><em>${esc(it.meta)}</em>${it.html ? `<small>${it.html}</small>` : it.sub ? `<small>${esc(it.sub)}</small>` : ''}</a></li>`).join('')
-      : busy ? '' : '<li><a href="#" aria-disabled="true"><b>No match</b><small>Try a topic like Patience or Moses, a surah name, or a verse like 2:255.</small></a></li>') +
+      : busy ? '' : '<li class="r-none"><b>No match</b><small>Try a topic like Patience or Moses, a surah name, or a verse like 2:255.</small></li>') +
       (busy ? `<li class="r-load">${LOADING(busy === true ? 'Searching the flow descriptions…' : busy)}</li>` : '');
     items = items.filter(it => !it.head); // keyboard moves over links only
   }
@@ -588,7 +676,7 @@
     const raw = q.value.trim(), my = ++searchGen;
     if (!raw) { results.innerHTML = ''; items = []; return; }
     let m;
-    try { m = await qmap(); } catch (e) { results.innerHTML = '<li><a href="#">Search is unavailable offline.</a></li>'; return; }
+    try { m = await qmap(); } catch (e) { results.innerHTML = '<li class="r-none"><b>Search could not load</b><small>Check your connection, then type again.</small></li>'; items = []; sel = -1; return; }
     if (my !== searchGen) return;
     const out = [];
     const ref = raw.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
@@ -600,14 +688,14 @@
                    : { href: `https://quran.com/${s}/${v}`, title: `${su[0]} ${s}:${v}`, meta: 'not grouped yet', sub: 'Read this verse on quran.com' });
       }
     }
-    const ta = isTa(raw), n = ref ? '' : norm(raw), words = n ? n.split(' ') : [];
-    const hit = str => { const h = norm(str); return words.every(w => h.includes(w)); };
-    if (n || ta) {
-      if (n) m.su.forEach((s, i) => { if (hit(`${i + 1} ${s[0]} ${s[1]}`) || s[2].includes(raw)) out.push({ href: `${BASE}surah/${i + 1}/`, title: `${i + 1}. ${s[0]}`, meta: `${s[3]} verses`, sub: s[1] }); });
+    const ta = isTa(raw), n = ref ? '' : norm(raw), words = n ? n.split(' ') : [], ar = !ref && hasAr(raw) ? arNorm(raw) : '';
+    const hit = str => { const h = norm(str); return words.length > 0 && words.every(w => h.includes(w)); };
+    if (n || ta || ar) {
+      if (n || ar) m.su.forEach((s, i) => { if ((n && hit(`${i + 1} ${s[0]} ${s[1]}`)) || (ar && arNorm(s[2]).includes(ar))) out.push({ href: `${BASE}surah/${i + 1}/`, title: `${i + 1}. ${s[0]}`, meta: `${s[3]} verses`, sub: s[1] }); });
       // Topics by name first, then by a related word: "wedding" finds Marriage, "riba" Interest, தொழுகை Prayer.
       const named = n ? m.t.filter(t => hit(t[1])) : [], rel = m.t.filter(t => !named.includes(t)).map(t => [t, relatedWord(t[4], raw, words)]).filter(x => x[1]);
-      named.sort((a, b) => b[3] - a[3]).forEach(t => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${t[3]} verses`, sub: `${t[2]} flow${t[2] > 1 ? 's' : ''}` }));
-      rel.sort((a, b) => b[0][3] - a[0][3]).forEach(([t, w]) => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${t[3]} verses`, sub: `${t[2]} flow${t[2] > 1 ? 's' : ''} · related to “${w}”` }));
+      named.sort((a, b) => b[3] - a[3]).forEach(t => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${pl(t[3], 'verse')}`, sub: `${pl(t[2], 'flow')}` }));
+      rel.sort((a, b) => b[0][3] - a[0][3]).forEach(([t, w]) => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${pl(t[3], 'verse')}`, sub: `${pl(t[2], 'flow')} · related to “${w}”` }));
     }
     const vOffer = !ref && (ta || n.length >= 3) && !verseLang ? { lang: ta ? 'ta' : 'en', q: raw } : null;
     if (verseLang) { await verseSearch(verseLang, raw, out, my); return; }
@@ -624,7 +712,13 @@
   async function verseSearch(lang, raw, out, my) {
     drawResults(out, `Loading the ${lang === 'ta' ? 'Tamil' : 'English'} verses (${VSIZE[lang]}, once)…`);
     let all, m;
-    try { [all, m] = await Promise.all([getJSON(`data/search/${lang}.json`), qmap()]); } catch (e) { if (my === searchGen) drawResults(out, false); return; }
+    try { [all, m] = await Promise.all([getJSON(`data/search/${lang}.json`), qmap()]); } catch (e) { // say so, where the answer would have been: this is not "no verse has it"
+      if (my === searchGen) {
+        const row = '<li class="r-none"><b>The verse text could not be loaded</b><small>Check your connection, then try again.</small></li>';
+        drawResults(out, false); if (out.length) results.insertAdjacentHTML('beforeend', row); else results.innerHTML = row;
+      }
+      return;
+    }
     if (my !== searchGen) return;
     const prep = lang === 'ta' ? NFC : x => x.toLowerCase();
     const ws = prep(raw).split(/\s+/).filter(w => w.length > (lang === 'ta' ? 0 : 1));
@@ -644,17 +738,20 @@
     drawResults([...out, head, ...rows], false);
     track('search_verses', { lang, term: raw });
   }
-  let tmr; q.addEventListener('input', () => { clearTimeout(tmr); tmr = setTimeout(runSearch, 120); });
-  q.addEventListener('keydown', e => {
+  let tmr, stale = false; // stale: the list on screen does not answer what is in the box yet
+  q.addEventListener('input', () => { stale = true; clearTimeout(tmr); tmr = setTimeout(() => { stale = false; runSearch(); }, 120); });
+  q.addEventListener('keydown', async e => {
     const links = $$('a', results);
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault(); if (!links.length) return;
       sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + links.length) % links.length;
       links.forEach((a, i) => a.setAttribute('aria-selected', String(i === sel))); links[sel].scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'Enter' && links[sel] && items.length) {
+    } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (links[sel].hasAttribute('data-act')) { links[sel].click(); return; }
-      track('search', { term: q.value }); location.href = links[sel].href; closeSearch();
+      if (stale) { clearTimeout(tmr); stale = false; await runSearch(); } // Enter pressed before the list caught up: search first
+      const a = $$('a', results)[sel]; if (!a || !items.length) return;
+      if (a.hasAttribute('data-act')) { a.click(); return; }
+      track('search', { term: q.value }); location.href = a.href; closeSearch();
     }
   });
 
@@ -662,7 +759,7 @@
   document.addEventListener('keydown', e => {
     const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
     if (e.key === '/' && !typing && dlg.hidden && !document.querySelector('dialog[open]')) { e.preventDefault(); openSearch(); }
-    else if (e.key === 'Escape' && !dlg.hidden) { closeSearch(); }
+    else if (e.key === 'Escape' && !dlg.hidden) { e.preventDefault(); closeSearch(); } // handled: Esc does nothing more on the page behind
   });
 
   /* ---------- visit count (footer) ----------
@@ -712,7 +809,7 @@
       async function find() {
         const s = +ls.value, v = +lv.value, n = +lv.max, my = ++lkGen;
         if (!lv.value) { lo.innerHTML = ''; return; }
-        if (!(v >= 1 && v <= n)) { lo.innerHTML = `<p class="v-err">${esc(ls.selectedOptions[0].textContent)} has ${n} verses: choose 1 to ${n}.</p>`; return; }
+        if (!(Number.isInteger(v) && v >= 1 && v <= n)) { lo.innerHTML = `<p class="v-err">${esc(ls.selectedOptions[0].textContent)} has ${n} verses: choose 1 to ${n}.</p>`; return; }
         lo.innerHTML = LOADING('Finding the flow…');
         try {
           const want = wantLangs(), [f, ...got] = await Promise.all([flowOf(s, v), ...want.map(l => verseText(l, s, v))]);
@@ -741,7 +838,7 @@
     applyView();
     let meta = null, all = null, rows = [], shown = 0, kb = -1, gen = 0, sort = { key: 'no', dir: 1 };
     const chunks = new Map();
-    const chunk = k => { if (!chunks.has(k)) chunks.set(k, fetch(`${BASE}data/flows/c${k}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })); return chunks.get(k); };
+    const chunk = k => { if (!chunks.has(k)) chunks.set(k, fetch(`${BASE}data/flows/c${k}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).catch(e => { chunks.delete(k); throw e; })); return chunks.get(k); }; // a part that failed is asked for again
     const metaP = fetch(BASE + 'data/flows/meta.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
     // Search, topic filters and sorting read the one compact index (one request, cached), never every list chunk.
     const loadAll = async () => { if (!all) all = (await index()).flows; return all; };
@@ -791,8 +888,12 @@
     function awayFromEnd() { window.clearTimeout(dwell); dwell = 0; if (!busy) delete moreEl.dataset.loading; }
     new IntersectionObserver(es => { if (es[es.length - 1].isIntersecting) nearEnd(); else awayFromEnd(); }, { rootMargin: `0px 0px ${AHEAD_PX}px 0px` }).observe(moreEl);
     const dropSkeleton = () => { for (const x of $$('.sk', list)) x.parentNode.removeChild(x); };
+    list.addEventListener('click', e => { // "Try again" on a list, or a next part, that did not arrive
+      const b = e.target.closest('[data-retry-flows]'); if (!b) return;
+      if (b.dataset.retryFlows === 'apply') apply(); else { b.closest('li').remove(); moreEl.hidden = false; more(gen); }
+    });
     async function more(my) {
-      if (busy || !source) return; busy = true; moreEl.dataset.loading = '';
+      if (busy || !source) return; busy = true; moreEl.dataset.loading = ''; let failed = false;
       try {
         const got = await source.next();
         if (my !== gen) return;
@@ -800,8 +901,9 @@
         if (got && got.length) { list.insertAdjacentHTML('beforeend', got.map(itemHTML).join('')); shown += got.length; }
         else if (!shown) list.innerHTML = '<li class="empty">No flows match. Clear the search or filters, or press Esc.</li>';
         moreEl.hidden = !source.left();
-      } catch (e) { if (my === gen) { dropSkeleton(); list.insertAdjacentHTML('beforeend', `<li class="empty">Could not load more flows (${esc(e.message)}). Scroll again to retry.</li>`); } }
-      finally { busy = false; if (my === gen) { delete moreEl.dataset.loading; nearEnd(); } }
+      } catch (e) { if (my === gen) { dropSkeleton(); failed = true; moreEl.hidden = true; $$('.load-err', list).forEach(x => x.remove()); // one message, and no trying again by itself
+        list.insertAdjacentHTML('beforeend', `<li class="empty load-err">${shown ? 'The next flows' : 'The flows'} could not be loaded (${esc(e.message)}). <button type="button" class="ghost" data-retry-flows="more">Try again</button></li>`); } }
+      finally { busy = false; if (my === gen) { delete moreEl.dataset.loading; if (!failed) nearEnd(); } }
     }
     const skeleton = n => Array.from({ length: n }, () => '<li class="sk" aria-hidden="true"><span class="skel w6"></span><span class="skel w40"></span><span class="skel w14"></span><span class="skel w20"></span><span class="skel w6"></span></li>').join('');
 
@@ -815,7 +917,7 @@
       table.classList.toggle('grouped', gb === 'topic'); // under a topic heading the rows don't repeat the topic's name
       table.classList.toggle('no-surah', gb === 'surah'); // nor the surah's under a surah heading
       fclear.hidden = !(q || s || t.length || cats.size || sort.key !== 'no' || sort.dir !== 1);
-      list.innerHTML = skeleton(8); shown = 0; kb = -1;
+      speech.drop(list); list.innerHTML = skeleton(8); shown = 0; kb = -1;
       const ref = q.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
       if (!q && !t.length && !cats.size && sort.key === 'no' && sort.dir === 1 && !gb) {
         const sp = s ? meta.span[String(s)] : [0, meta.flows - 1];
@@ -823,10 +925,16 @@
         const n = s ? (sp ? sp[1] - sp[0] + 1 : 0) : meta.flows;
         total.textContent = s ? `${n} flow${n === 1 ? '' : 's'} in ${surahName(s)}` : `${meta.flows.toLocaleString()} flows · ${meta.verses.toLocaleString()} verses`;
       } else {
-        const data = await loadAll(); if (my !== gen) return;
+        let data;
+        try { data = await loadAll(); } catch (e) { // the one file that search, filters and sorting read did not arrive
+          if (my === gen) { source = null; list.innerHTML = `<li class="empty load-err">The flows could not be loaded (${esc(e.message)}). <button type="button" class="ghost" data-retry-flows="apply">Try again</button></li>`; }
+          return;
+        }
+        if (my !== gen) return;
         let r = data.filter(f => (!s || f[1] === s) && (!t.length || sel.has(f[5])) && inCats(f[5]));
         if (ref) { const S = +ref[1], V = +ref[2]; r = r.filter(f => f[1] === S && f[2] <= V && f[3] >= V); }
-        else if (q) { const w = norm(q).split(' '); r = r.filter(f => { const h = norm(`${f[4]} ${f[6]} ${surahName(f[1])}`); return w.every(x => h.includes(x)); }); }
+        // A box holding nothing to compare (no letters or digits) matches nothing, instead of everything.
+        else if (q) { const nq = norm(q), w = nq.split(' '); r = !nq ? [] : r.filter(f => { const h = norm(`${f[4]} ${f[6]} ${surahName(f[1])}`); return w.every(x => h.includes(x)); }); }
         const key = { no: f => f[0], name: f => f[4].toLowerCase(), count: f => f[3] - f[2] + 1, surah: f => f[1] * 10000 + f[2] }[sort.key];
         r = r.slice().sort((x, y) => { const a = key(x), b = key(y); return (a < b ? -1 : a > b ? 1 : x[0] - y[0]) * sort.dir; });
         const v = r.reduce((n, f) => n + f[3] - f[2] + 1, 0);
@@ -843,10 +951,10 @@
           }
           source = arraySource([...groups.values()].flatMap(g => [g, ...g.flows]));
           const unit = byTopic ? ['topic', 'topics'] : byCat ? ['category', 'categories'] : ['surah', 'surahs'];
-          total.textContent = `${groups.size} ${unit[groups.size === 1 ? 0 : 1]} · ${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
+          total.textContent = `${groups.size} ${unit[groups.size === 1 ? 0 : 1]} · ${pl(r.length, 'flow')} · ${pl(v, 'verse')}`;
         } else {
           source = arraySource(r);
-          total.textContent = `${r.length} flow${r.length === 1 ? '' : 's'} · ${v} verses`;
+          total.textContent = `${pl(r.length, 'flow')} · ${pl(v, 'verse')}`;
         }
       }
       await more(my);
@@ -859,15 +967,24 @@
         const sp = m.span[String(s[0])], n = sp ? sp[1] - sp[0] + 1 : 0, k = (m.stopics || {})[String(s[0])] || 0;
         return `<option value="${s[0]}"${n ? '' : ' disabled'}>${s[0]}. ${esc(s[1])} · ${k} topic${k === 1 ? '' : 's'} · ${n} flow${n === 1 ? '' : 's'}</option>`;
       }).join('');
-      const st = store.get('qf-filter', {});
-      if (st.s && fs.querySelector(`option[value="${st.s}"]:not([disabled])`)) fs.value = st.s;
+      const st = store.obj('qf-filter');
+      if (st.s && fs.querySelector(`option[value="${CSS.escape(String(st.s))}"]:not([disabled])`)) fs.value = st.s;
       m.topics.forEach(t => topicBy.set(t[0], t));
-      cats = new Set(store.get('qf-cats', []).filter(id => (m.cats || []).some(c => c[0] === id))); drawCatChips();
-      store.get('qf-topics', []).forEach(x => { if (topicBy.has(x)) sel.add(x); }); if (st.t && topicBy.has(st.t)) sel.add(st.t);
+      cats = new Set(store.arr('qf-cats').filter(id => (m.cats || []).some(c => c[0] === id))); drawCatChips();
+      store.arr('qf-topics').forEach(x => { if (topicBy.has(x)) sel.add(x); }); if (st.t && topicBy.has(st.t)) sel.add(st.t);
       drawChips();
+      drawToday();
       show(VIEW);
       if (VIEW === 'flows') apply(); // the list is only fetched on the Flows page
-    }).catch(e => { list.innerHTML = `<li class="empty">The flows could not be loaded (${esc(e.message)}). Reload the page to try again.</li>`; });
+    }).catch(e => {
+      // Nothing on this page works without that one file: say so wherever the reader is looking, with a way to try again.
+      const again = '<button type="button" class="ghost" data-reload>Reload the page</button>';
+      list.innerHTML = `<li class="empty">The flows could not be loaded (${esc(e.message)}). ${again}</li>`; moreEl.hidden = true;
+      if (meta) return;
+      const tl = $('#topic-list'), bb = $('#bubbles'), msg = `The topics could not be loaded (${esc(e.message)}). ${again}`;
+      if (tl) tl.innerHTML = /^[OU]L$/.test(tl.tagName) ? `<li class="empty">${msg}</li>` : `<p class="v-err">${msg}</p>`;
+      if (bb) bb.innerHTML = `<p class="bub-note">${msg}</p>`;
+    });
 
     /* Topic chips: pick several topics; the list shows flows under any of them. Typed text that is not
        picked stays a text search (names, descriptions, surah names) or a verse reference like 2:255. */
@@ -904,7 +1021,7 @@
         const w = relatedWord(t[6], raw, ws); if (w) rel.set(t[0], w);
         return !!w;
       }).sort((a, b) => (rel.has(a[0]) - rel.has(b[0])) || b[3] - a[3]).slice(0, 12);
-      fac.innerHTML = acOpts.map((t, i) => `<li role="option" data-i="${i}" aria-selected="${i === acSel}">${esc(t[1])}<small>${rel.has(t[0]) ? `related to “${esc(rel.get(t[0]))}” · ` : ''}${t[2]} flows · ${t[3]} verses</small></li>`).join('');
+      fac.innerHTML = acOpts.map((t, i) => `<li role="option" data-i="${i}" aria-selected="${i === acSel}">${esc(t[1])}<small>${rel.has(t[0]) ? `related to “${esc(rel.get(t[0]))}” · ` : ''}${pl(t[2], 'flow')} · ${pl(t[3], 'verse')}</small></li>`).join('');
       fac.hidden = !acOpts.length;
     }
     function pick(t) { sel.add(t[0]); fq.value = ''; acSel = -1; fac.hidden = true; drawChips(); apply(); fq.focus(); }
@@ -940,7 +1057,7 @@
     }));
 
     document.addEventListener('keydown', e => {
-      if ($('#flows').hidden || !dlg.hidden || document.querySelector('dialog[open]')) return;
+      if (e.defaultPrevented || $('#flows').hidden || !dlg.hidden || document.querySelector('dialog[open]')) return;
       const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
       if (e.key === 'Escape') { if (!fac.hidden) { fac.hidden = true; return; } if (typing) document.activeElement.blur(); clearFilters(); return; }
       if (typing) return;
@@ -992,7 +1109,7 @@
       for (let s = 1; s <= 114; s++) {
         const ts = per.get(s) || [], tot = ts.reduce((n, t) => n + t.v, 0);
         const chips = order(ts.filter(t => inCats(t.slug))).map(t => { const sh = t.v / (tot || 1), w = sh >= 0.3 ? 4 : sh >= 0.15 ? 3 : sh >= 0.07 ? 2 : 1; return `<li><button type="button" class="tchip w${w}" data-topic="${t.slug}" data-surah="${s}"><i class="cat-dot" data-cat="${catOf(t.slug)}"></i>${esc(t.name)}<span>${t.v}</span></button></li>`; }).join('');
-        html += `<section class="bs" id="bs-${s}"><div class="bs-head"><a class="bs-name" href="${BASE}surah/${s}/"><span class="bs-no">${s}</span>${esc(surahName(s))}</a><span class="bs-meta">${ts.length} topic${ts.length === 1 ? '' : 's'} · ${tot} verses</span></div><ul class="bs-chips">${chips}</ul></section>`;
+        html += `<section class="bs" id="bs-${s}"><div class="bs-head"><a class="bs-name" href="${BASE}surah/${s}/"><span class="bs-no">${s}</span>${esc(surahName(s))}</a><span class="bs-meta">${pl(ts.length, 'topic')} · ${pl(tot, 'verse')}</span></div><ul class="bs-chips">${chips}</ul></section>`;
       }
       box.innerHTML = html;
       $('#tl-count').textContent = '114 surahs';
@@ -1019,18 +1136,18 @@
     popGroup.checked = store.get('qf-popgroup', false);
     if ('speechSynthesis' in window) { popRead.innerHTML = `${ICON_SPEAK} Read aloud`; popRead.hidden = false; }
     let popOpener = null, popCur = null;
-    async function openTopic(slug, surah = 0) {
+    async function openTopic(slug, surah = 0, fromHistory = false) {
       const t = topicBy.get(slug); if (!t) return;
       // This topic's flows only (a few hundred bytes): [number, surah, first, last, description]
       let rows; try { rows = await getJSON(`data/topic/${slug}.json`); } catch (e) { location.href = `${BASE}topic/${slug}/`; return; }
       const all = rows.map(r => [r[0], r[1], r[2], r[3], t[1], slug, r[4]]), flows = surah ? all.filter(f => f[1] === surah) : all;
       const v = flows.reduce((n, f) => n + f[3] - f[2] + 1, 0);
-      if (pop.contains(speech.el)) speech.stop();
-      popCur = { slug, surah };
+      speech.drop(pop);
+      popCur = { slug, surah }; syncCover();
       $('#tp-title').textContent = surah ? `${t[1]} in ${surahName(surah)}` : t[1];
       const tc = meta.cats && meta.cats[t[5]];
       $('.tp-eyebrow', pop).innerHTML = tc ? `Topic · <span class="cat-name" data-cat="${tc[0]}">${esc(tc[1])}</span>` : 'Topic';
-      $('#tp-meta').textContent = `${flows.length} flow${flows.length === 1 ? '' : 's'} · ${v} verse${v === 1 ? '' : 's'}` + (surah ? '' : ` · ${new Set(all.map(f => f[1])).size} surahs`);
+      $('#tp-meta').textContent = `${pl(flows.length, 'flow')} · ${pl(v, 'verse')}` + (surah ? '' : ` · ${pl(new Set(all.map(f => f[1])).size, 'surah')}`);
       const allBtn = $('#tp-all');
       allBtn.hidden = !surah || all.length === flows.length;
       if (surah) { allBtn.textContent = `See all ${all.length} flows on ${t[1]} in the Quran`; allBtn.onclick = () => openTopic(slug, 0); }
@@ -1054,8 +1171,8 @@
         b.textContent = +b.dataset.dir < 0 ? `‹ ${n.name}` : `${n.name} ›`;
         b.onclick = () => openTopic(n.slug, surah);
       });
-      if (!pop.open) { popOpener = document.activeElement; pop.showModal(); syncBars(); document.documentElement.classList.add('modal-open'); history.pushState({ qfTopic: slug, k: LOAD }, ''); }
-      else history.replaceState({ qfTopic: slug, k: LOAD }, '');
+      if (!pop.open) { popOpener = document.activeElement; pop.showModal(); syncBars(); document.documentElement.classList.add('modal-open'); if (fromHistory) history.replaceState({ qfTopic: slug, s: surah, k: LOAD }, ''); else history.pushState({ qfTopic: slug, s: surah, k: LOAD }, ''); }
+      else history.replaceState({ qfTopic: slug, s: surah, k: LOAD }, '');
       $('.tp-body', pop).scrollTop = 0;
       if (flows.length <= 3) $$('.fl', popList).forEach(li => toggle(li, true)); // a few passages: show their verses straight away
       syncOpenAll();
@@ -1078,15 +1195,19 @@
       if (lines.length) speech.say(lines, popRead);
     });
     function finishClose() {
-      if (pop.contains(speech.el)) speech.stop();
+      speech.drop(pop);
       if (pop.open) pop.close();
       document.documentElement.classList.remove('modal-open');
       if (popOpener && document.contains(popOpener)) popOpener.focus({ preventScroll: true });
     }
     const closeTopic = () => { if (history.state && history.state.k === LOAD) history.back(); else finishClose(); };
-    window.addEventListener('popstate', () => { if (pop.open && !(history.state && history.state.k === LOAD)) finishClose(); });
+    window.addEventListener('popstate', () => {
+      const st = history.state, ours = st && st.k === LOAD;
+      if (pop.open && !ours) finishClose(); // Back
+      else if (!pop.open && ours && topicBy.has(st.qfTopic)) openTopic(st.qfTopic, st.s || 0, true); // Forward, onto the popup's own step
+    });
     pop.addEventListener('cancel', e => { e.preventDefault(); closeTopic(); });
-    pop.addEventListener('click', e => { if (e.target === pop) closeTopic(); }); // the dimmed area around it
+    pop.addEventListener('click', e => { if (outside(pop, e)) closeTopic(); }); // the dimmed area around it
     $('.tp-close', pop).addEventListener('click', closeTopic);
     // On this page a topic opens in the popup: list, chips, bubbles, group headings, search results, verse links.
     document.addEventListener('click', e => {
@@ -1099,13 +1220,87 @@
       // From the Flows tab with a surah chosen, the popup keeps to that surah (a button inside widens it).
       if (!surah && !pop.contains(e.target) && e.target.closest('#flows') && +fs.value) surah = +fs.value;
       e.preventDefault();
-      if (!$('#search').hidden) $('#search').hidden = true;
+      closeSearch();
       openTopic(slug, surah);
     });
 
+    /* Today's topic: one topic a day, picked at random from those this reader has not covered yet, so the topics can
+       be worked through one a day instead of by browsing. The pick holds for the day (the reader's own date);
+       "Another topic" swaps it. A topic is covered once it has been opened from this card, or when the reader ticks
+       "Mark as covered" in any topic's popup (unticking puts it back in the draw). Kept in this browser only, and
+       carried in the progress file with the rest (Quiz page). */
+    const today = $('#today'), tpCover = $('#tp-cover');
+    const dayKey = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+    const covered = () => { const l = store.get('qf-covered', []); return Array.isArray(l) ? [...new Set(l)].filter(s => topicBy.has(s)) : []; };
+    const isCovered = slug => covered().includes(slug);
+    function setCovered(slug, on) {
+      const l = covered().filter(s => s !== slug); if (on) l.push(slug);
+      store.set('qf-covered', l); drawToday(); syncCover();
+    }
+    function syncCover() { // the tick in the popup; a topic shown for one surah only is a part of it, so no tick there
+      if (!tpCover) return;
+      const on = !!popCur && isCovered(popCur.slug);
+      tpCover.hidden = !popCur || !!popCur.surah;
+      tpCover.setAttribute('aria-pressed', String(on)); tpCover.textContent = on ? '✓ Covered' : 'Mark as covered';
+    }
+    // Today's pick; other = the reader asked for a different one. null when there is nothing left to offer.
+    function pickToday(other) {
+      const d = store.get('qf-daily', null), cur = d && d.d === dayKey() && topicBy.has(d.s) ? d.s : null;
+      if (cur && !other) return cur;
+      const done = new Set(covered()), pool = meta.topics.map(t => t[0]).filter(s => !done.has(s) && s !== cur);
+      if (!pool.length) return cur;
+      const s = pool[Math.floor(Math.random() * pool.length)];
+      store.set('qf-daily', { d: dayKey(), s });
+      return s;
+    }
+    function drawToday(other) {
+      if (!today || !meta || !meta.topics.length) return;
+      const total = meta.topics.length, done = covered().length, slug = done < total ? pickToday(other) : null, t = slug && topicBy.get(slug);
+      const tally = `${done} of ${total} topics covered`;
+      if (!t) {
+        today.innerHTML = `<div class="today-text"><p class="today-eyebrow">Today's topic</p><p class="today-name">All ${total} topics covered</p><p class="today-meta">You have been through every topic. Start again to be offered one a day afresh.</p></div>` +
+          '<div class="today-acts"><button type="button" data-today="reset">Start again</button></div>';
+        delete today.dataset.slug;
+      } else {
+        const on = isCovered(slug), last = !on && total - done === 1;
+        today.innerHTML = `<div class="today-text"><p class="today-eyebrow">Today's topic${on ? ' <span class="today-done">✓ covered</span>' : ''}</p>` +
+          `<p class="today-name" data-cat="${catOf(slug)}"><i class="cat-dot"></i>${esc(t[1])}</p>` +
+          `<p class="today-meta">${t[2]} flow${t[2] === 1 ? '' : 's'} · ${t[3]} verse${t[3] === 1 ? '' : 's'}${done ? ` · ${tally}` : ''}</p></div>` +
+          `<div class="today-acts"><button type="button" data-today="open"${on ? '' : ' class="main"'}>${on ? 'Read again' : 'Read it'}</button>` +
+          (last ? '' : `<button type="button" data-today="other"${on ? ' class="main"' : ''}>Another topic</button>`) + '</div>';
+        today.dataset.slug = slug;
+      }
+      today.hidden = false;
+    }
+    if (today) today.addEventListener('click', async e => {
+      const b = e.target.closest('[data-today]'); if (!b) return;
+      if (b.dataset.today === 'other') { drawToday(true); const go = $('[data-today="open"]', today); if (go) go.focus({ preventScroll: true }); return; }
+      if (b.dataset.today === 'reset') {
+        if (!confirm('Start again? This clears the list of topics you have covered, in this browser.')) return;
+        store.set('qf-covered', []); drawToday(); syncCover(); return;
+      }
+      const slug = today.dataset.slug;
+      await openTopic(slug);
+      if (pop.open && popCur && popCur.slug === slug && !popCur.surah && !isCovered(slug)) setCovered(slug, true); // it did open: counted
+    });
+    if (tpCover) tpCover.addEventListener('click', () => { if (popCur) setCovered(popCur.slug, !isCovered(popCur.slug)); });
+    // A page left open overnight, or progress changed in another tab: the card follows.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && meta) { drawToday(); syncCover(); } });
+    addEventListener('storage', e => { if (meta && (e.key === 'qf-covered' || e.key === 'qf-daily' || e.key === null)) { drawToday(); syncCover(); } });
+
+    /* The tips on the field ("Drag to explore ...") show each time the page is opened and go away after 30 seconds, at
+       the first drag, zoom or tap on the field, or with their own close button; the "?" button brings them back.
+       Nothing is remembered between visits, and a redraw (theme, category) keeps whatever state they are in. */
+    const TIPS_MS = 30000, tips = { on: true, t: 0 };
+    function setTips(on) {
+      clearTimeout(tips.t); tips.on = on; tips.t = on ? setTimeout(() => setTips(false), TIPS_MS) : 0;
+      const h = document.getElementById('bub-hint'), q = $('#bubbles [data-tips="toggle"]');
+      if (h) h.classList.toggle('off', !on);
+      if (q) q.setAttribute('aria-expanded', String(on));
+    }
     let drawn = false;
     function drawTopics(again) {
-      if (!meta) { metaP.then(() => drawTopics()); return; }
+      if (!meta) { metaP.then(() => drawTopics(), () => {}); return; }
       const topics = meta.topics.filter(t => inCats(t[0])).map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3], cat: catOf(t[0]) })).sort((a, b) => b.v - a.v);
       if (!drawn || again) { drawTopicsView(); drawn = true; }
       const box = $('#bubbles');
@@ -1114,7 +1309,7 @@
          topics around the one in the centre stay in view. Tapping a topic that is small or far out glides it to
          the centre and zooms in; tapping a topic you can read opens it. */
       const draw = () => {
-        if (!window.d3) { box.innerHTML = ''; return; }
+        if (!window.d3) { box.innerHTML = '<p class="bub-note">The picture of topics could not be loaded. Every topic is in the list below.</p>'; return; }
         if (box._qf) box._qf.abort(); // a redraw (theme change) replaces the old listeners, never adds to them
         const ac = box._qf = new AbortController(), on = (t, f, o) => box.addEventListener(t, f, { ...o, signal: ac.signal });
         const cs = getComputedStyle(document.documentElement), c = k => cs.getPropertyValue(k).trim();
@@ -1132,8 +1327,9 @@
            small type that becomes readable as you zoom in. */
         // Measured with an SVG text styled exactly like the labels (optical sizing off, so width scales with size).
         const ns = 'http://www.w3.org/2000/svg';
-        box.innerHTML = '<p class="bub-hint" aria-hidden="true">Drag to explore · pinch, Ctrl+scroll or + − to zoom · tap a small topic to bring it close, tap again to open</p>' +
-          '<div class="bub-zoom"><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="out" aria-label="Zoom out">−</button></div>';
+        box.innerHTML = `<p class="bub-hint${tips.on ? '' : ' off'}" id="bub-hint"><span>Drag to explore · pinch, Ctrl+scroll or + − to zoom · tap a small topic to bring it close, tap again to open</span><button type="button" data-tips="hide" aria-label="Hide these tips">×</button></p>` +
+          `<div class="bub-zoom"><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="out" aria-label="Zoom out">−</button><button type="button" data-tips="toggle" aria-label="How to move around" aria-controls="bub-hint" aria-expanded="${tips.on}">?</button></div>`;
+        if (tips.on && !tips.t) setTips(true); // the 30 seconds start when the field is first drawn
         const svg = document.createElementNS(ns, 'svg');
         svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${topics.length} topics sized by verse count; the list below has them all`);
         box.appendChild(svg);
@@ -1163,11 +1359,11 @@
         };
 
         const nodes = leaves.map(l => {
-          const big = l.r > max * 0.55, count = `${l.data.v} verse${l.data.v === 1 ? '' : 's'}`;
+          const big = l.r > max * 0.55, count = pl(l.data.v, 'verse');
           const { fs, lines, top, sh, body } = layout(l.data.name, count, l.r), y = e => (e * fs).toFixed(2);
           const g = document.createElementNS(ns, 'g'); g.setAttribute('class', 'bub'); g.dataset.slug = l.data.slug;
           g.style.setProperty('--sh', `${y(sh)}px`); // re-centres the name when the count is hidden
-          g.innerHTML = `<title>${esc(l.data.name)}: ${l.data.v} verses in ${l.data.n} flows</title>` +
+          g.innerHTML = `<title>${esc(l.data.name)}: ${pl(l.data.v, 'verse')} in ${pl(l.data.n, 'flow')}</title>` +
             `<circle r="${l.r.toFixed(1)}" fill="${big ? cc(l.data.cat, '') : cc(l.data.cat, '-t')}" stroke="${cc(l.data.cat, '')}" stroke-width="${big ? 0 : 1.2}"></circle>` +
             `<text class="bn" text-anchor="middle" font-size="${fs.toFixed(2)}" fill="${big ? c('--cat-ink') : c('--fg')}">` +
             lines.map((t, i) => `<tspan x="0" y="${y(top + ASC + i * LH)}">${esc(t)}</tspan>`).join('') + '</text>' +
@@ -1244,8 +1440,8 @@
         let down = null, moved = 0, last = null;
         const pts = new Map(); let pinch = null;
         on('pointerdown', e => {
-          if (e.button !== 0 || e.target.closest('.bub-zoom')) return;
-          stop(); try { box.setPointerCapture(e.pointerId); } catch (err) { /* synthetic or lost pointer: dragging still works */ }
+          if (e.button !== 0 || e.target.closest('.bub-zoom, .bub-hint')) return;
+          setTips(false); stop(); try { box.setPointerCapture(e.pointerId); } catch (err) { /* synthetic or lost pointer: dragging still works */ }
           pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
           if (pts.size === 2) { const [p1, p2] = [...pts.values()]; pinch = { d: Math.hypot(p1.x - p2.x, p1.y - p2.y), z: zoom }; moved = 99; return; }
           down = { x: e.clientX, y: e.clientY }; last = { x: e.clientX, y: e.clientY, t: performance.now() }; moved = 0; box.classList.add('dragging');
@@ -1273,20 +1469,26 @@
           down = null;
         };
         on('pointerup', end); on('pointercancel', e => { pts.delete(e.pointerId); pinch = null; down = null; box.classList.remove('dragging'); });
-        on('click', e => { const b = e.target.closest('.bub-zoom button'); if (b) animateTo(px, py, zoom * (b.dataset.z === 'in' ? 1.6 : 1 / 1.6)); });
+        on('click', e => {
+          const tb = e.target.closest('[data-tips]');
+          if (tb) { setTips(tb.dataset.tips === 'toggle' && !tips.on); return; }
+          const b = e.target.closest('.bub-zoom button'); if (b) { setTips(false); animateTo(px, py, zoom * (b.dataset.z === 'in' ? 1.6 : 1 / 1.6)); }
+        });
         on('wheel', e => {
-          e.preventDefault(); stop();
+          e.preventDefault(); stop(); setTips(false);
           if (e.ctrlKey) { const rc = box.getBoundingClientRect(); zoomAt(zoom * Math.exp(-e.deltaY / 300), e.clientX - rc.left - rc.width / 2, e.clientY - rc.top - rc.height / 2); }
           else { px -= e.deltaX / (zoom * base); py -= e.deltaY / (zoom * base); clamp(); }
           render();
         }, { passive: false });
-        box.tabIndex = 0;
+        box.tabIndex = 0; box.setAttribute('role', 'group');
+        box.setAttribute('aria-label', 'Topics as bubbles. Arrow keys move the picture, plus and minus zoom, Enter opens the topic in the middle. Every topic is also in the list below.');
         on('keydown', e => {
           const m = { ArrowLeft: [60, 0], ArrowRight: [-60, 0], ArrowUp: [0, 60], ArrowDown: [0, -60] }[e.key];
+          if (!e.target.closest('[data-tips]') && (m || ['+', '=', '-', 'Enter'].includes(e.key))) setTips(false);
           if (m) { e.preventDefault(); stop(); px += m[0] / zoom; py += m[1] / zoom; clamp(); render(); }
           else if (e.key === '+' || e.key === '=') animateTo(px, py, zoom * 1.4);
           else if (e.key === '-') animateTo(px, py, zoom / 1.4);
-          else if (e.key === 'Enter' && !e.target.closest('.bub-zoom')) {
+          else if (e.key === 'Enter' && !e.target.closest('.bub-zoom, .bub-hint')) {
             const rc = box.getBoundingClientRect(), nd = hitAt(rc.left + rc.width / 2, rc.top + rc.height / 2);
             if (nd) openOrBring(nd);
           }
@@ -1298,7 +1500,7 @@
       window.__qfBubbles = draw;
       // Measure names in the real font, so wait for it (it is already loading for the page).
       const go = () => (document.fonts && document.fonts.load ? document.fonts.load('400 16px Literata').then(draw, draw) : draw());
-      if (window.d3) go(); else window.addEventListener('load', go, { once: true });
+      if (window.d3 || document.readyState === 'complete') go(); else window.addEventListener('load', go, { once: true });
     }
     // Redraw for the new colours only while the field is on screen (labels are measured, which needs it shown);
     // opening the Topics tab always draws afresh anyway.

@@ -16,6 +16,33 @@
   let M = null;
   const sName = s => M.su[s - 1][0];
   const flowsOf = s => { const f = M.f[s - 1] || [], out = []; for (let i = 0; i < f.length; i += 3) out.push({ s, a: f[i], b: f[i + 1], name: M.t[f[i + 2]][1] }); return out; };
+  // What is kept in the browser, or comes from a progress file, may be damaged, edited by hand or left by an older
+  // version of the flows. Only what matches the site's own data is counted: real surahs, flows that exist, verses
+  // that exist, and scores that can happen (never more right answers than questions asked).
+  const num = (x, max) => { const n = Math.floor(+x); return n > 0 ? Math.min(n, max) : 0; };
+  const isObj = o => !!o && typeof o === 'object' && !Array.isArray(o);
+  const cleanSeen = o => {
+    const out = {};
+    for (const [k, l] of Object.entries(isObj(o) ? o : {})) {
+      const f = /^\d{1,3}$/.test(k) ? M.f[+k - 1] : null;
+      if (!f || !Array.isArray(l)) continue;
+      const starts = new Set(f.filter((_, i) => i % 3 === 0)), got = [...new Set(l.map(Number))].filter(a => starts.has(a));
+      if (got.length) out[+k] = got;
+    }
+    return out;
+  };
+  const cleanQuiz = o => {
+    const out = {};
+    for (const [k, r] of Object.entries(isObj(o) ? o : {})) {
+      if (!/^\d{1,3}$/.test(k) || +k > M.su.length || !isObj(r)) continue; // "0" is the whole Quran
+      const rounds = num(r.rounds, 1e6); if (!rounds) continue;
+      const asked = num(r.asked, rounds * N), right = num(r.right, asked), best = num(r.best, Math.min(N, right));
+      out[+k] = { best, last: num(r.last, N), rounds, right, asked, n: num(r.n, N) || N };
+      if (typeof r.at === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.at)) out[+k].at = r.at;
+    }
+    return out;
+  };
+  const realVerse = r => { const [s, v] = r.split(':').map(Number), su = M.su[s - 1]; return !!su && v >= 1 && v <= su[3]; };
 
   /* ---------- questions ---------- */
   // Three wrong answers: other flow names of the same surah first, then any topic; never the right one twice.
@@ -75,6 +102,8 @@
       '<div class="qz-after" hidden></div>';
     markHard(box);
     const first = $('.qz-opts button', box); if (first) first.focus({ preventScroll: true });
+    const top = box.getBoundingClientRect().top; // a new question starts where it can be read
+    if (top < 0 || top > innerHeight * 0.6) box.scrollIntoView({ block: 'start' });
   }
   function answer(btn) {
     const q = round.qs[round.i], ok = btn.dataset.o === q.right;
@@ -86,11 +115,12 @@
     after.innerHTML = `<p class="qz-fb ${ok ? 'ok' : 'no'}">${ok ? 'Right.' : `Not quite: it is “${esc(q.right)}”.`} <a href="${BASE}surah/${f.s}/#f-${f.s}-${f.a}">Read “${esc(f.name)}” · ${rng(f.s, f.a, f.b)}</a></p>` +
       `<button type="button" class="qz-next">${last ? 'See your score' : 'Next question'}</button>`;
     after.hidden = false; $('.qz-next', after).focus({ preventScroll: true });
+    after.scrollIntoView({ block: 'nearest' }); // the answer and the way on are never left below the screen's edge
     $('.qz-top span:last-child', box).textContent = `Score ${round.right}`;
   }
   function next() { round.i++; if (round.i < round.qs.length) show(); else finish(); }
   function finish() {
-    const key = String(round.surah), all = store.get('qf-quiz', {}), r = all[key] || { best: 0, last: 0, rounds: 0, right: 0, asked: 0 };
+    const key = String(round.surah), all = cleanQuiz(store.obj('qf-quiz')), r = all[key] || { best: 0, last: 0, rounds: 0, right: 0, asked: 0 };
     const isBest = round.right > r.best;
     Object.assign(r, { best: Math.max(r.best, round.right), last: round.right, rounds: r.rounds + 1, right: r.right + round.right, asked: r.asked + round.qs.length, n: round.qs.length, at: new Date().toISOString().slice(0, 10) });
     all[key] = r; store.set('qf-quiz', all);
@@ -112,23 +142,26 @@
   });
   document.addEventListener('keydown', e => { // 1-4 answer, Enter goes on (when not typing)
     if (box.hidden || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+    const sd = document.getElementById('search'); // not while a shortcut is meant (Cmd+1), or something is open over the quiz
+    if (e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog[open]') || (sd && !sd.hidden)) return;
     const k = +e.key; if (k >= 1 && k <= 4) { const b = $$('.qz-opts button', box)[k - 1]; if (b && !b.disabled) { e.preventDefault(); answer(b); } }
   });
   const pre = new URLSearchParams(location.search).get('surah');
   if (pre && $(`#qz-s option[value="${CSS.escape(pre)}"]`)) $('#qz-s').value = pre;
 
   /* ---------- your progress ---------- */
-  const KEYS = ['qf-seen', 'qf-quiz', 'qf-favs'];
+  const KEYS = ['qf-seen', 'qf-quiz', 'qf-favs', 'qf-covered'];
+  const coveredNow = () => { const l = store.get('qf-covered', []), ok = new Set((M ? M.t : []).map(t => t[0])); return Array.isArray(l) ? [...new Set(l)].filter(s => ok.has(s)) : []; };
   async function drawProgress() {
     try { M = M || await qmap(); } catch (e) { pg.innerHTML = `<p class="v-err">Your progress could not be shown (${esc(e.message)}).</p>`; return; }
-    const seen = store.get('qf-seen', {}), quiz = store.get('qf-quiz', {}), nf = store.get('qf-favs', []).length;
+    const seen = cleanSeen(store.obj('qf-seen')), quiz = cleanQuiz(store.obj('qf-quiz')), nf = favs.size, nc = coveredNow().length;
     const total = M.f.reduce((n, f) => n + f.length / 3, 0), read = Object.values(seen).reduce((n, l) => n + l.length, 0);
     const rounds = Object.values(quiz).reduce((n, r) => n + r.rounds, 0), right = Object.values(quiz).reduce((n, r) => n + r.right, 0), asked = Object.values(quiz).reduce((n, r) => n + r.asked, 0);
     const started = M.su.map((su, i) => i + 1).filter(s => (seen[s] && seen[s].length) || quiz[s]);
     const pct = x => Math.round(x * 100);
     const card = (big, small) => `<div class="pg-card"><b>${big}</b><span>${small}</span></div>`;
-    let html = `<div class="pg-cards">${card(`${read.toLocaleString()}`, `of ${total.toLocaleString()} flows read (${pct(read / total)}%)`)}${card(started.length, `of 114 surahs started`)}${card(rounds, `quiz${rounds === 1 ? '' : 'zes'} played`)}${card(asked ? `${pct(right / asked)}%` : '–', 'answers right')}${card(nf, `favourite verse${nf === 1 ? '' : 's'}`)}</div>`;
-    html += `<div class="pg-keep"><p><b>Kept in this browser only.</b> ${read || rounds || nf ? `You have ${[read && `${read} flow${read === 1 ? '' : 's'} read`, rounds && `${rounds} quiz${rounds === 1 ? '' : 'zes'} played`, nf && `${nf} favourite${nf === 1 ? '' : 's'}`].filter(Boolean).join(', ')}. ` : ''}Clearing your browsing data, a private window or another device starts again from nothing, and nothing is sent to us. Download a copy to keep it safe or to carry it to another device.</p>` +
+    let html = `<div class="pg-cards">${card(`${read.toLocaleString()}`, `of ${total.toLocaleString()} flows read (${pct(read / total)}%)`)}${card(started.length, `of 114 surahs started`)}${card(nc, `of ${M.t.length} topics covered`)}${card(rounds, `quiz${rounds === 1 ? '' : 'zes'} played`)}${card(asked ? `${pct(right / asked)}%` : '–', 'answers right')}${card(nf, `favourite verse${nf === 1 ? '' : 's'}`)}</div>`;
+    html += `<div class="pg-keep"><p><b>Kept in this browser only.</b> ${read || rounds || nf || nc ? `You have ${[read && `${read} flow${read === 1 ? '' : 's'} read`, nc && `${nc} topic${nc === 1 ? '' : 's'} covered`, rounds && `${rounds} quiz${rounds === 1 ? '' : 'zes'} played`, nf && `${nf} favourite${nf === 1 ? '' : 's'}`].filter(Boolean).join(', ')}. ` : ''}Clearing your browsing data, a private window or another device starts again from nothing, and nothing is sent to us. Download a copy to keep it safe or to carry it to another device.</p>` +
       '<div class="pg-acts"><button type="button" data-export>Download my progress</button><label class="pg-import">Restore from a file<input type="file" accept="application/json,.json" data-import></label><button type="button" class="ghost" data-reset>Start again</button></div></div>';
     const rows = M.su.map((su, i) => {
       const s = i + 1, n = M.f[i].length / 3, r = (seen[s] || []).length, q = quiz[s];
@@ -137,7 +170,7 @@
     const only = started.length > 0 && store.get('qf-pg-all', false) !== true;
     html += `<div class="pg-head"><h3>Surah by surah</h3>${started.length ? `<label class="tp-check"><input type="checkbox" data-pg-all${only ? '' : ' checked'}> Show all 114</label>` : ''}</div>`;
     html += '<ol class="pg-list">' + rows.filter(x => !only || x.r || x.q).map(({ s, su, n, r, q }) => `<li class="${r || q ? '' : 'pg-none'}"><a href="${BASE}surah/${s}/" class="pg-name"><span class="pg-no">${s}</span>${esc(su[0])}</a>` +
-      `<span class="pg-bar" role="img" aria-label="${r} of ${n} flows read"><span style="width:${pct(r / (n || 1))}%"></span></span><span class="pg-n">${r}/${n} flows</span>` +
+      `<span class="pg-bar" role="img" aria-label="${r} of ${n} flows read"><span style="width:${Math.min(100, pct(r / (n || 1)))}%"></span></span><span class="pg-n">${r}/${n} flows</span>` +
       `<span class="pg-q">${q ? `quiz best ${q.best}/${q.n || 10}` : n >= 3 ? `<a href="?surah=${s}#qz-setup" data-quiz="${s}">take the quiz</a>` : ''}</span></li>`).join('') + '</ol>';
     if (quiz['0']) html += `<p class="pg-all">Whole-Quran quiz: best ${quiz['0'].best} of ${quiz['0'].n || 10}, ${quiz['0'].rounds} round${quiz['0'].rounds === 1 ? '' : 's'}.</p>`;
     pg.innerHTML = html;
@@ -155,8 +188,8 @@
       return;
     }
     if (e.target.closest('[data-reset]')) {
-      if (!confirm('Start again? This clears your reading progress and quiz scores in this browser (favourites stay). Download a copy first if you may want them back.')) return;
-      store.set('qf-seen', {}); store.set('qf-quiz', {}); drawProgress(); toast('Progress and scores cleared');
+      if (!confirm('Start again? This clears your reading progress, the topics you have covered and your quiz scores in this browser (favourites stay). Download a copy first if you may want them back.')) return;
+      store.set('qf-seen', {}); store.set('qf-quiz', {}); store.set('qf-covered', []); drawProgress(); toast('Progress and scores cleared');
     }
   });
   pg.addEventListener('change', async e => {
@@ -166,10 +199,21 @@
       const d = JSON.parse(await inp.files[0].text());
       if (!d || d.app !== 'quran-flow') throw new Error('this is not a Quran Flow progress file');
       // Merged with what is here, never replacing it: flows read and favourites are joined, quiz scores keep the best.
-      const seen = store.get('qf-seen', {}); Object.entries(d['qf-seen'] || {}).forEach(([s, l]) => { if (Array.isArray(l)) seen[s] = [...new Set([...(seen[s] || []), ...l.filter(Number.isInteger)])]; });
-      const quiz = store.get('qf-quiz', {}); Object.entries(d['qf-quiz'] || {}).forEach(([k, r]) => { const o = quiz[k] || { best: 0, last: 0, rounds: 0, right: 0, asked: 0 }; ['best', 'rounds', 'right', 'asked'].forEach(f => { o[f] = Math.max(o[f] || 0, +r[f] || 0); }); o.last = o.last || +r.last || 0; quiz[k] = o; });
-      const fv = [...new Set([...store.get('qf-favs', []), ...(Array.isArray(d['qf-favs']) ? d['qf-favs'].filter(x => /^\d+:\d+$/.test(x)) : [])])];
-      store.set('qf-seen', seen); store.set('qf-quiz', quiz); store.set('qf-favs', fv);
+      M = M || await qmap();
+      const seen = cleanSeen(store.obj('qf-seen'));
+      for (const [s, l] of Object.entries(cleanSeen(d['qf-seen']))) seen[s] = [...new Set([...(seen[s] || []), ...l])];
+      const quiz = cleanQuiz(store.obj('qf-quiz'));
+      for (const [k, r] of Object.entries(cleanQuiz(d['qf-quiz']))) {
+        const o = quiz[k];
+        if (!o) { quiz[k] = r; continue; }
+        const newer = (r.at || '') > (o.at || '');
+        ['best', 'rounds', 'right', 'asked'].forEach(f => { o[f] = Math.max(o[f], r[f]); });
+        if (newer) { o.last = r.last; o.n = r.n; o.at = r.at; }
+      }
+      const got = k => (Array.isArray(d[k]) ? d[k].filter(x => typeof x === 'string') : []);
+      const fv = [...new Set([...favs, ...got('qf-favs').filter(x => /^\d{1,3}:\d{1,3}$/.test(x)).map(x => x.split(':').map(Number).join(':')).filter(realVerse)])];
+      const slugs = new Set(M.t.map(t => t[0])), cv = [...new Set([...store.arr('qf-covered'), ...got('qf-covered')])].filter(x => slugs.has(x));
+      store.set('qf-seen', seen); store.set('qf-quiz', quiz); store.set('qf-favs', fv); store.set('qf-covered', cv);
       fv.forEach(r => favs.add(r));
       toast('Progress restored and merged with this browser’s', 3500); drawProgress();
     } catch (err) { toast(`Could not restore: ${err.message}`, 4000); }

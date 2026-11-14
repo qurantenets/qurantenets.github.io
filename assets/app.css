@@ -220,10 +220,28 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .prose h2 { font: 400 1.35rem/1.2 var(--display); margin: 28px 0 8px }
 .prose li { margin-bottom: 6px }
 
-/* footer */
-.foot { border-top: 1px solid var(--line); background: var(--surface); margin-top: 20px }
-.foot-in { max-width: 1180px; margin: 0 auto; padding-block: 22px 30px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: .86rem; color: var(--muted) }
-.foot-in p { margin: 4px 0; max-width: 90ch }
+/* footer: what the site is, where the text comes from, privacy, word meanings, each under its own heading across
+   the width of the page; then a closing line with the feature request and the visit count */
+.foot { border-top: 1px solid var(--line); background: var(--surface); margin-top: 28px }
+.foot-in { max-width: 1180px; margin: 0 auto; padding-block: 30px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: .86rem; line-height: 1.55; color: var(--muted) }
+.foot-cols { display: grid; grid-template-columns: 1.2fr 1.2fr 1.4fr 1fr; gap: 26px 40px }
+.foot-cols > div { min-width: 0 }
+.foot-cols p, .foot-src { margin: 0 }
+.foot-cols p + p, .foot-src + p { margin-top: 10px }
+.foot-brand { display: flex; align-items: baseline; gap: 8px; font: 400 1.3rem/1.1 var(--display); color: var(--fg) }
+.foot-brand span { font: 400 1.05rem/1 var(--arabic); color: var(--accent) }
+.foot h2 { margin: 3px 0 9px; font: 600 .72rem/1.4 var(--body); letter-spacing: .09em; text-transform: uppercase; color: var(--fg) }
+.foot-src div { display: grid; grid-template-columns: 4.4em minmax(0, 1fr); column-gap: 8px }
+.foot-src dt { color: var(--fg) }
+.foot-src dd { margin: 0 }
+.foot-btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; min-height: 38px; padding: 4px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); font: 500 .84rem var(--body); color: var(--fg) }
+.foot-btn:hover { border-color: var(--accent); color: var(--accent) }
+.foot-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.foot-end { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 24px; margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--line) }
+.foot-end a { padding-block: 6px }
+.foot-end p { margin: 0 }
+@media (max-width: 1020px) { .foot-cols { grid-template-columns: 1fr 1fr } }
+@media (max-width: 600px) { .foot-cols { grid-template-columns: 1fr; gap: 22px } .foot-in { padding-block: 24px 30px } .foot-end { margin-top: 22px } }
 
 /* search */
 .search-dlg { position: fixed; inset: 0; z-index: 40; background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(3px); padding: calc(env(safe-area-inset-top, 0px) + 8vh) max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)) }
@@ -259,7 +277,14 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .bubbles .bub text { font-family: var(--body); pointer-events: none }
 .bubbles .bub.nolabel text, .bubbles .bub.nocount .bc { display: none }
 .bubbles .bub:hover circle { filter: brightness(1.08) }
-.bub-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); margin: 0; padding: 4px 12px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 88%, transparent); text-align: center; font-size: .78rem; color: var(--muted); pointer-events: none; z-index: 1 }
+.bub-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); margin: 0; padding: 4px 4px 4px 14px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 88%, transparent); text-align: center; font-size: .78rem; color: var(--muted); pointer-events: none; z-index: 1; display: flex; align-items: center; gap: 4px; transition: opacity .25s ease, visibility 0s }
+.bub-hint.off { opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility 0s .25s }
+.bub-hint button { all: unset; pointer-events: auto; cursor: pointer; flex: none; position: relative; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 1.15rem; line-height: 1; color: var(--muted) }
+.bub-hint button::after { content: ''; position: absolute; inset: -8px } /* a 44px target around the 28px mark */
+.bub-hint button:hover { background: var(--raise); color: var(--fg) }
+.bub-hint button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.bub-zoom button[aria-expanded="true"] { border-color: var(--accent); color: var(--accent) }
+@media (prefers-reduced-motion: reduce) { .bub-hint, .bub-hint.off { transition: none } }
 /* the whole row opens its verses */
 .fl { cursor: pointer }
 .fl .fl-verses { cursor: auto }
@@ -414,6 +439,22 @@ html.modal-open { overflow: hidden }
 /* Popup actions: read aloud, open all, group by surah, see all. */
 .tp-acts { align-items: center }
 .tp-read { display: inline-flex; align-items: center; gap: 6px }
+.tp-cover[aria-pressed="true"] { color: var(--fg); font-weight: 600 }
+/* Today's topic: a card above the field on the home page */
+.today { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface) }
+.today-text { flex: 1 1 240px; min-width: 0 }
+.today-text p { margin: 0 }
+.today-eyebrow { font: 500 .72rem var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--gold) }
+.today-done { margin-left: 6px; letter-spacing: 0; text-transform: none; font-size: .8rem; color: var(--accent) }
+.today-name { font: 400 1.35rem/1.25 var(--display); color: var(--fg); overflow-wrap: anywhere }
+.today-name .cat-dot { vertical-align: 3px }
+.today-meta { font-size: .84rem; color: var(--muted) }
+.today-acts { display: flex; flex-wrap: wrap; gap: 8px }
+.today-acts button { all: unset; cursor: pointer; box-sizing: border-box; min-height: 40px; display: inline-flex; align-items: center; padding: 6px 16px; border-radius: 999px; border: 1px solid var(--line); font: 500 .9rem var(--body); color: var(--fg); white-space: nowrap }
+.today-acts button:hover { border-color: var(--accent); color: var(--accent) }
+.today-acts button.main { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600 }
+.today-acts button.main:hover { color: var(--accent-ink); filter: brightness(1.08) }
+.today-acts button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
 .tp-read[aria-pressed="true"] { color: var(--fg) }
 .tp-read:disabled { opacity: .6; cursor: progress }
 .tp-check { display: inline-flex; align-items: center; gap: 6px; font: 500 .84rem var(--body); color: var(--muted); cursor: pointer }
@@ -581,3 +622,49 @@ html.modal-open { overflow: hidden }
 .qz-top > span:not(.qz-dots) { white-space: nowrap }
 @media (max-width: 420px) { .qz-dots { gap: 3px } .qz-dots i { width: 7px; height: 7px } }
 .visits { font: 500 .8rem var(--mono); color: var(--muted) }
+
+/* ---------- edges (2026-11-14) ---------- */
+/* The floating bars (selected verses, reading aloud). On the page they float over its end, so the page keeps as much
+   room under itself as they take (--bars-h, measured by the page) and its last lines can always be scrolled clear of
+   them; while the cookie notice is up they sit above it (--bar-lift). */
+body { padding-bottom: var(--bars-h, 0px) }
+@media (max-width: 760px) {
+  :root { --nav-b: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)) }
+  body { padding-bottom: max(var(--bars-h, 0px), var(--nav-b)) }
+}
+.share-bar, .sp-bar { bottom: calc(var(--bar-b, 12px) + var(--bar-lift, 0px) + env(safe-area-inset-bottom, 0px)) }
+.sp-bar.lift { bottom: calc(var(--bar-b, 12px) + var(--bar-lift, 0px) + var(--sb-h, 64px) + 8px + env(safe-area-inset-bottom, 0px)) }
+/* In a popup they are rows of the popup itself, between its list and its foot, so they cover nothing. */
+.tp > .share-bar, .tp > .sp-bar { position: static; transform: none; flex: none; align-self: center; margin: 6px 0; box-shadow: none }
+.tp > .sp-bar { order: 1 } .tp > .share-bar { order: 2 } .tp > .tp-foot { order: 3 }
+.fav-pop { padding-bottom: env(safe-area-inset-bottom, 0px) }
+/* A line being read aloud comes to rest clear of the top bar and of whatever floats at the bottom. */
+[data-speak] { scroll-margin-top: 120px; scroll-margin-bottom: calc(max(var(--bars-h, 0px), var(--nav-b, 0px)) + 16px) }
+.tp [data-speak] { scroll-margin: 16px 0 }
+
+/* Things that could not be loaded say so where the reader is looking, with a way to try again. */
+.bub-note { position: absolute; inset: 0; margin: 0; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px; text-align: center; color: var(--muted) }
+.results .r-none { display: grid; gap: 2px; padding: 9px 12px }
+.empty .ghost, .v-err .ghost, .bub-note .ghost { margin-left: 6px; font: inherit; font-style: normal; font-size: .86rem; color: var(--fg) }
+.fav-bad { margin: 0 }
+
+/* Quiz on a narrow phone: the dots take their own line, an answer never forces the page sideways, and the answer's
+   feedback stops clear of the bottom menu. */
+.qz { scroll-margin-top: calc(74px + env(safe-area-inset-top, 0px)) }
+.qz-opts { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)) }
+.qz-opts button { min-width: 0; overflow-wrap: anywhere }
+.qz-after { scroll-margin-bottom: calc(max(var(--bars-h, 0px), var(--nav-b, 0px)) + 16px) }
+@media (max-width: 380px) {
+  .qz { padding: 14px }
+  .qz-top { flex-wrap: wrap }
+  .qz-dots { order: 3; flex: 1 0 100%; justify-content: space-between }
+}
+
+/* Small gold text. The gold of the light theme is a decoration colour (about 3:1 on the page); small text in it gets a
+   deeper gold that reads at 4.8:1 or better on every light surface. The dark theme's gold already does. */
+:root { --gold-ink: #806419 }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --gold-ink: #d6b35c } }
+:root[data-theme="dark"] { --gold-ink: #d6b35c }
+.eyebrow, .sc-no, .bs-no, .tp-eyebrow, .fl-group-no, .today-eyebrow { color: var(--gold-ink) }
+/* The counts on the two deeper chip shades: the muted grey falls under 4.5:1 there. */
+.tchip.w2 span, .tchip.w3 span { color: color-mix(in srgb, var(--fg) 85%, transparent) }
