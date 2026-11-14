@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quiz · Quran Flow</title>
+<meta name="description" content="Test yourself on the flows of the Quran: which flow a verse is in, what comes next, and where a flow sits in its surah. Your scores and reading progress, surah by surah.">
+<link rel="canonical" href="https://qurantenets.github.io/quiz/">
+<meta property="og:title" content="Quiz · Quran Flow"><meta property="og:description" content="Test yourself on the flows of the Quran: which flow a verse is in, what comes next, and where a flow sits in its surah. Your scores and reading progress, surah by surah."><meta property="og:url" content="https://qurantenets.github.io/quiz/"><meta property="og:type" content="website">
+<meta name="theme-color" content="#0e5a43">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Literata:opsz,wght@7..72,400;7..72,600&family=Marcellus&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Tamil:wght@400&display=swap">
+<link rel="stylesheet" href="/assets/app.css?v=ada1ee1814">
+<script>try{var t=localStorage.getItem('qf-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
+</head>
+<body data-kind="quiz" data-base="/">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="/">Quran Flow <span lang="ar">تدبّر</span></a>
+    <button class="search-btn" type="button" data-open-search aria-label="Search topics, surahs and verses"><span aria-hidden="true">⌕</span><span class="lbl">Search topic, surah or 2:255</span><kbd>/</kbd></button>
+    <nav class="nav" aria-label="Main"><a href="/">Topics</a><a href="/flows/">Flows</a><a href="/surahs/">Surahs</a><a href="/quiz/">Quiz</a><a href="/about/">About</a></nav>
+    <button type="button" class="nav-fav" data-open-favs aria-label="Favourite verses">★<span class="nav-fav-n" id="fav-n"></span></button>
+    <button class="theme-btn" type="button" data-theme-toggle aria-label="Switch light or dark">◐</button>
+  </div>
+</header>
+<main id="main">
+
+<section class="wrap quiz">
+  <nav class="tabs" aria-label="Views">
+    <a href="/" data-nav>Topics</a><a href="/flows/" data-nav>Flows</a><a href="/surahs/" data-nav>Surahs</a><a href="/quiz/" aria-current="page">Quiz</a>
+  </nav>
+  <h1>Test yourself</h1>
+  <p class="lede">Ten questions made from the flows themselves: which flow a verse is in, which flow comes next, and where a flow sits in its surah.</p>
+  <form class="qz-setup" id="qz-setup">
+    <label>Questions from <select id="qz-s"><option value="0">The whole Quran</option><option value="2">2. Al-Baqara · 105 flows</option><option value="3">3. Aal-i-Imraan · 77 flows</option><option value="4">4. An-Nisaa · 78 flows</option><option value="5">5. Al-Maaida · 53 flows</option><option value="6">6. Al-An&#x27;aam · 60 flows</option><option value="7">7. Al-A&#x27;raaf · 50 flows</option><option value="8">8. Al-Anfaal · 29 flows</option><option value="9">9. At-Tawba · 42 flows</option><option value="10">10. Yunus · 38 flows</option><option value="11">11. Hud · 32 flows</option><option value="12">12. Yusuf · 16 flows</option><option value="13">13. Ar-Ra&#x27;d · 19 flows</option><option value="14">14. Ibrahim · 16 flows</option><option value="15">15. Al-Hijr · 17 flows</option><option value="16">16. An-Nahl · 42 flows</option><option value="17">17. Al-Israa · 44 flows</option><option value="18">18. Al-Kahf · 24 flows</option><option value="19">19. Maryam · 24 flows</option><option value="20">20. Taa-Haa · 18 flows</option><option value="21">21. Al-Anbiyaa · 29 flows</option><option value="22">22. Al-Hajj · 33 flows</option><option value="23">23. Al-Muminoon · 24 flows</option><option value="24">24. An-Noor · 26 flows</option><option value="25">25. Al-Furqaan · 21 flows</option><option value="26">26. Ash-Shu&#x27;araa · 19 flows</option><option value="27">27. An-Naml · 18 flows</option><option value="28">28. Al-Qasas · 21 flows</option><option value="29">29. Al-Ankaboot · 24 flows</option><option value="30">30. Ar-Room · 30 flows</option><option value="31">31. Luqman · 15 flows</option><option value="32">32. As-Sajda · 11 flows</option><option value="33">33. Al-Ahzaab · 29 flows</option><option value="34">34. Saba · 19 flows</option><option value="35">35. Faatir · 27 flows</option><option value="36">36. Yaseen · 17 flows</option><option value="37">37. As-Saaffaat · 20 flows</option><option value="38">38. Saad · 15 flows</option><option value="39">39. Az-Zumar · 31 flows</option><option value="40">40. Al-Ghaafir · 26 flows</option><option value="41">41. Fussilat · 17 flows</option><option value="42">42. Ash-Shura · 25 flows</option><option value="43">43. Az-Zukhruf · 19 flows</option><option value="44">44. Ad-Dukhaan · 11 flows</option><option value="45">45. Al-Jaathiya · 12 flows</option><option value="46">46. Al-Ahqaf · 11 flows</option><option value="47">47. Muhammad · 14 flows</option><option value="48">48. Al-Fath · 10 flows</option><option value="49">49. Al-Hujuraat · 7 flows</option><option value="50">50. Qaaf · 13 flows</option><option value="51">51. Adh-Dhaariyat · 13 flows</option><option value="52">52. At-Tur · 8 flows</option><option value="53">53. An-Najm · 9 flows</option><option value="54">54. Al-Qamar · 12 flows</option><option value="55">55. Ar-Rahmaan · 13 flows</option><option value="56">56. Al-Waaqia · 8 flows</option><option value="57">57. Al-Hadid · 10 flows</option><option value="58">58. Al-Mujaadila · 8 flows</option><option value="59">59. Al-Hashr · 7 flows</option><option value="60">60. Al-Mumtahana · 6 flows</option><option value="61">61. As-Saff · 7 flows</option><option value="62">62. Al-Jumu&#x27;a · 3 flows</option><option value="63">63. Al-Munaafiqoon · 3 flows</option><option value="64">64. At-Taghaabun · 8 flows</option><option value="65">65. At-Talaaq · 4 flows</option><option value="66">66. At-Tahrim · 5 flows</option><option value="67">67. Al-Mulk · 9 flows</option><option value="68">68. Al-Qalam · 8 flows</option><option value="69">69. Al-Haaqqa · 6 flows</option><option value="70">70. Al-Ma&#x27;aarij · 4 flows</option><option value="71">71. Nooh · 3 flows</option><option value="72">72. Al-Jinn · 5 flows</option><option value="73">73. Al-Muzzammil · 6 flows</option><option value="74">74. Al-Muddaththir · 7 flows</option><option value="75">75. Al-Qiyaama · 7 flows</option><option value="76">76. Al-Insaan · 6 flows</option><option value="77">77. Al-Mursalaat · 8 flows</option><option value="78">78. An-Naba · 6 flows</option><option value="79">79. An-Naazi&#x27;aat · 6 flows</option><option value="80">80. Abasa · 5 flows</option><option value="82">82. Al-Infitaar · 5 flows</option><option value="83">83. Al-Mutaffifin · 4 flows</option><option value="84">84. Al-Inshiqaaq · 3 flows</option><option value="85">85. Al-Burooj · 4 flows</option><option value="87">87. Al-A&#x27;laa · 4 flows</option><option value="88">88. Al-Ghaashiya · 4 flows</option><option value="89">89. Al-Fajr · 4 flows</option><option value="90">90. Al-Balad · 3 flows</option><option value="92">92. Al-Lail · 4 flows</option><option value="96">96. Al-Alaq · 3 flows</option></select></label>
+    <button type="submit">Start the quiz</button>
+    <p class="qz-note">Surahs with fewer than 3 flows are part of the whole-Quran quiz.</p>
+  </form>
+  <div class="qz" id="qz" hidden aria-live="polite"></div>
+  <h2 class="pg-title" id="progress">Your progress</h2>
+  <div class="pg" id="pg"><p class="v-load">Loading…</p></div>
+</section>
+</main>
+<footer class="foot">
+  <div class="foot-in">
+    <p>Quran Flow groups the verses of the Quran, in their own order, into short named passages to help you understand and remember them.</p>
+    <p>Arabic text: <a href="https://tanzil.net" rel="noopener">Tanzil Project</a> (Uthmani). English: Saheeh International. Tamil: Jan Turst Foundation. <a href="/about/">Sources and how the flows are made</a>.</p>
+    <p>Your privacy: we do not collect or store your details. Favourites, reading progress, quiz scores and settings stay in this browser only. Google Analytics runs only if you allow it.</p>
+    <p>Hard English words have a dotted underline: tap one for its meaning. <button type="button" class="link-btn" data-gloss-toggle>Turn word meanings off</button></p>
+    <p><a href="mailto:qurantenets@gmail.com?subject=Feature request for Quran Flow&amp;body=What would you like to be able to do?%0A%0AWhere on the site (page or surah)?%0A%0AAnything else:%0A">Request a feature</a></p>
+  </div>
+</footer>
+<div class="share-bar" id="share-bar" hidden role="region" aria-label="Selected verses">
+  <span class="sb-n" id="sb-n"></span>
+  <input type="text" id="sb-msg" aria-label="Message to send with the verses" value="Hey, I found this on Quran Flow and thought you would like it:">
+  <button type="button" id="sb-copy">Copy</button><button type="button" id="sb-share" hidden>Share</button><button type="button" id="sb-clear" aria-label="Clear the selection">×</button>
+</div>
+<div class="sp-bar" id="sp-bar" hidden role="region" aria-label="Reading aloud">
+  <span class="sp-now" id="sp-now"></span>
+  <button type="button" id="sp-pause">Pause</button><button type="button" id="sp-stop">Stop</button>
+</div>
+<dialog class="tp fav-pop" id="fav-pop" aria-labelledby="fav-title">
+  <div class="tp-head"><div class="tp-titles"><p class="tp-eyebrow">Saved in this browser</p><h2 id="fav-title">Favourite verses</h2><p class="tp-meta" id="fav-meta"></p></div><button type="button" class="tp-close" data-close-favs aria-label="Close">×</button></div>
+  <div class="tp-body" id="fav-body"></div>
+</dialog>
+<div class="consent" id="consent" hidden>
+  <p>This site uses Google Analytics to learn which pages help people. Nothing loads unless you allow it.</p>
+  <div><button type="button" data-consent="accepted">Allow</button><button type="button" data-consent="declined">No thanks</button></div>
+</div>
+<div class="search-dlg" id="search" hidden role="dialog" aria-modal="true" aria-label="Search">
+  <div class="search-box"><input id="q" type="search" autocomplete="off" placeholder="Patience, Moses, Al-Kahf, 2:255…" aria-label="Search"><button type="button" data-close-search aria-label="Close search">Esc</button></div>
+  <ol class="results" id="results"></ol>
+</div>
+<script>window.QF={base:"/",ga:"G-0FG3FEVN0J"};</script>
+<script src="/assets/app.js?v=ada1ee1814" defer></script>
+<script src="/assets/quiz.js?v=ada1ee1814" defer></script>
+</body>
+</html>

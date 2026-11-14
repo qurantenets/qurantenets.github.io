@@ -304,11 +304,11 @@
     $('#sb-share').hidden = !navigator.share;
     syncBars();
   }
-  function toast(msg) {
+  function toast(msg, ms = 2200) {
     let t = document.getElementById('qf-toast');
     if (!t) { t = document.createElement('div'); t.id = 'qf-toast'; t.className = 'qf-toast'; t.setAttribute('role', 'status'); }
     (document.querySelector('dialog[open]') || document.body).appendChild(t);
-    t.textContent = msg; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, 2200);
+    t.textContent = msg; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, ms);
   }
   document.addEventListener('change', e => {
     const cb = e.target.closest('[data-pick]'); if (!cb) return;
@@ -357,6 +357,19 @@
     } catch (e) { body.innerHTML = `<p class="v-err">The verses could not be loaded (${esc(e.message)}).</p>`; }
   }
 
+
+  /* ---------- reading progress (this browser only) ----------
+     A flow counts as read when its verses are opened, or when its last verse comes into view in Read through.
+     Kept as { surah: [first verse of each flow read] }; the Quiz page shows it surah by surah. */
+  const seen = store.get('qf-seen', {});
+  const MILESTONES = [5, 25, 100, 250, 500, 1000, 1658];
+  function markSeen(s, a) {
+    const k = String(s), arr = seen[k] || (seen[k] = []);
+    if (arr.includes(a)) return;
+    arr.push(a); store.set('qf-seen', seen);
+    const n = Object.values(seen).reduce((x, l) => x + l.length, 0);
+    if (MILESTONES.includes(n)) toast(`${n.toLocaleString()} flows read. Your progress is on the Quiz page (kept in this browser only).`, 5000);
+  }
 
   /* ---------- meanings of hard English words ----------
      Words from data/glossary.json get a dotted underline in the English text; tapping one (or Enter on it)
@@ -444,6 +457,7 @@
       if (box.contains(speech.el)) speech.stop();
       box.innerHTML = html;
       markHard(box);
+      markSeen(s, a);
     } catch (e) {
       box.innerHTML = `<p class="v-err">The verses could not be loaded (${esc(e.message)}). Check your connection and open the flow again.</p>`;
     }
@@ -489,7 +503,7 @@
   const surahSec = document.body.dataset.kind === 'surah' && $('.surah[data-surah]');
   if (surahSec) {
     const S = +surahSec.dataset.surah, readBox = $('#read', surahSec), gotoBox = $('[data-goto]', surahSec);
-    let mode = /^#f-/.test(location.hash) ? 'flows' : location.hash === '#read' ? 'read' : store.get('qf-sview', 'flows'), readP = null;
+    let mode = /^#f-/.test(location.hash) ? 'flows' : location.hash === '#read' ? 'read' : store.get('qf-sview', 'flows'), readP = null, readObs = null;
     const flowRows = () => $$('.timeline .fl', surahSec).map(li => ({ a: +li.dataset.a, b: +li.dataset.b, name: $('.fl-open', li).textContent, slug: li.dataset.slug }));
     async function drawRead() {
       const want = wantLangs(), keep = $$('.v', readBox).find(el => el.getBoundingClientRect().top >= 70); // stay on the same verse after a redraw
@@ -502,11 +516,14 @@
         if (v <= n) parts.push({ a: v, b: n });
         const next = $('.pn a[rel="next"]', surahSec);
         const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<div class="rd-acts"><button type="button" class="v-readall" data-read-all data-read-label="Read the surah aloud">${ICON_SPEAK} Read the surah aloud</button></div>` : '';
-        readBox.innerHTML = readAll + parts.map(f => `<section class="rd-flow" data-a="${f.a}"><h3 class="rd-name">${f.name ? `<a href="${BASE}topic/${f.slug}/">${esc(f.name)}</a>` : 'Not grouped yet'}<span>${rng(S, f.a, f.b)}</span></h3>` +
+        readBox.innerHTML = readAll + parts.map(f => `<section class="rd-flow" data-a="${f.a}"${f.name ? ' data-flow' : ''}><h3 class="rd-name">${f.name ? `<a href="${BASE}topic/${f.slug}/">${esc(f.name)}</a>` : 'Not grouped yet'}<span>${rng(S, f.a, f.b)}</span></h3>` +
           Array.from({ length: f.b - f.a + 1 }, (_, i) => verseHTML(S, f.a + i, t, f.a + i - 1)).join('') + '</section>').join('') +
           (next ? `<p class="rd-next"><a href="${next.getAttribute('href')}#read">Continue reading: ${esc(next.textContent.replace(/\s*→\s*$/, ''))} →</a></p>` : '<p class="rd-next">The end of the Quran.</p>');
         if (keep) { const el = $(`.v[data-ref="${keep.dataset.ref}"]`, readBox); if (el) el.scrollIntoView({ block: 'start' }); }
         markHard(readBox);
+        if (readObs) readObs.disconnect();
+        readObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { markSeen(S, +e.target.closest('.rd-flow').dataset.a); readObs.unobserve(e.target); } }));
+        $$('.rd-flow[data-flow] > .v:last-child', readBox).forEach(v => readObs.observe(v));
       } catch (e) { readBox.innerHTML = `<p class="v-err">The surah could not be loaded (${esc(e.message)}). Check your connection and try again.</p>`; readP = null; }
     }
     const setMode = m => {
@@ -646,6 +663,9 @@
     if (e.key === '/' && !typing && dlg.hidden && !document.querySelector('dialog[open]')) { e.preventDefault(); openSearch(); }
     else if (e.key === 'Escape' && !dlg.hidden) { closeSearch(); }
   });
+
+  // What the Quiz page's own script (assets/quiz.js, loaded there only) uses from this one.
+  window.QF.api = { getJSON, qmap, flowText, esc, store, rng, LOADING, markHard, wantLangs, toast, track, favs };
 
   /* ---------- home ---------- */
   if (document.body.dataset.kind === 'home') home();
