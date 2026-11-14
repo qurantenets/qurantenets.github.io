@@ -1,6 +1,8 @@
 /* Quran Flow - one script for every page.
-   Data loads only when needed: data/index.json once (home, search), and the verse text of a surah in the
-   chosen languages only when a flow in it is opened (data/text/<lang>/<surah>.json, cached for the visit). */
+   Only what the reader looks at is loaded, each file once per visit: a flow's own verses when it is opened
+   (data/v), a topic's flows when it is tapped (data/topic), a small map of all flows for verse lookups and
+   favourites (data/map.json), a whole surah only when reading it through (data/text), and the full flow index
+   (data/index.json) only for searching flow descriptions and the Flows page filters. */
 (() => {
   'use strict';
   const BASE = (window.QF && window.QF.base) || '/';
@@ -13,16 +15,37 @@
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
   };
   const rng = (s, a, b) => a === b ? `${s}:${a}` : `${s}:${a}–${b}`;
+  const LOADING = msg => `<p class="v-load" role="status"><span class="qf-loader" aria-hidden="true"></span>${esc(msg)}</p>`;
 
   /* ---------- data ---------- */
-  let indexP = null;
-  const index = () => indexP || (indexP = fetch(BASE + 'data/index.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }));
-  const textCache = new Map();
-  const text = (lang, s) => {
-    const k = lang + s;
-    if (!textCache.has(k)) textCache.set(k, fetch(`${BASE}data/text/${lang}/${s}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }));
-    return textCache.get(k);
+  const files = new Map();
+  const getJSON = path => { // each file once per visit; a failed one is forgotten so the next try fetches it again
+    if (!files.has(path)) {
+      const p = fetch(BASE + path).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+      files.set(path, p); p.catch(() => files.delete(path));
+    }
+    return files.get(path);
   };
+  const index = () => getJSON('data/index.json');
+  const qmap = () => getJSON('data/map.json');
+  const text = (lang, s) => getJSON(`data/text/${lang}/${s}.json`); // a whole surah
+  // One flow's verses (first..last), taken from the whole surah instead when that is loaded already.
+  const flowText = (lang, s, a, b) => (files.has(`data/text/${lang}/${s}.json`) ? text(lang, s).then(t => t.slice(a - 1, b)) : getJSON(`data/v/${lang}/${s}/${a}.json`));
+  // The flow a verse is in, from the map: { s, a, b, no, slug, name } or null when it is not grouped.
+  async function flowOf(s, v) {
+    const m = await qmap(), f = m.f[s - 1];
+    if (!f) return null;
+    if (!m.no) { let n = 0; m.no = m.f.map(x => { const k = n; n += x.length / 3; return k; }); } // flows before each surah
+    for (let i = 0; i < f.length; i += 3) {
+      if (f[i] <= v && v <= f[i + 1]) { const t = m.t[f[i + 2]]; return { s, a: f[i], b: f[i + 1], no: m.no[s - 1] + i / 3 + 1, slug: t[0], name: t[1] }; }
+    }
+    return null;
+  }
+  async function verseText(lang, s, v) {
+    const f = await flowOf(s, v);
+    if (!f) return (await text(lang, s))[v - 1]; // not in a flow: the surah has it
+    return (await flowText(lang, s, f.a, f.b))[v - f.a];
+  }
 
   /* ---------- theme ---------- */
   const themeBtn = $('[data-theme-toggle]');
@@ -226,6 +249,14 @@
     return `<div class="v" data-ref="${r}"><div class="v-tools"><label class="v-pick"><input type="checkbox" data-pick${picked.has(r) ? ' checked' : ''}> Select ${r}</label>` +
       `<button type="button" class="v-fav" data-fav aria-pressed="${f}" aria-label="${f ? 'Remove' : 'Save'} ${r} ${f ? 'from' : 'to'} favourites" title="Favourite">${f ? '★' : '☆'}</button></div>`;
   }
+  // One verse in the chosen languages: t holds an array per language, i is this verse's place in those arrays.
+  function verseHTML(s, v, t, i, tail = '') {
+    let html = verseTools(s, v);
+    if (t.ar) html += `<div class="v-ar" lang="ar">${esc(t.ar[i])}<span class="v-mark" aria-label="verse ${v}">${AR(v)}</span></div>`;
+    if (t.en) html += `<div class="v-en" data-speak="en"><sup>${s}:${v}</sup><span class="vt">${esc(t.en[i])}</span>${speakBtn(`${s}:${v}`, 'English')}</div>`;
+    if (t.ta) html += `<div class="v-ta" lang="ta" data-speak="ta"><sup>${s}:${v}</sup><span class="vt">${esc(t.ta[i])}</span>${speakBtn(`${s}:${v}`, 'Tamil')}</div>`;
+    return html + tail + '</div>';
+  }
   function correctionLink(s, a, b, nm) { // an email already holding the flow, its link and the questions to answer
     const r = rng(s, a, b);
     const body = `Flow: ${nm} (${r})\nPage: ${location.origin}${BASE}surah/${s}/#f-${s}-${a}\n\nWhat should change (name, description, or where it starts or ends):\n\nWhy (a tafsir or other source helps):\n`;
@@ -238,13 +269,13 @@
   // not the screen, so a verse picked in a popup that has since closed is still sent. Picking a verse loads its
   // surah's text (see primeText), so this finishes straight away and the browser still counts it as the tap.
   const wantLangs = () => ['ar', 'en', 'ta'].filter(l => langs[l]);
-  const primeText = r => wantLangs().forEach(l => text(l, +r.split(':')[0]).catch(() => {}));
+  const primeText = r => { const [s, v] = r.split(':').map(Number); wantLangs().forEach(l => verseText(l, s, v).catch(() => {})); };
   async function shareText() {
     const out = [], surahs = new Set();
     for (const r of [...picked].sort((x, y) => refKey(x) - refKey(y))) {
-      const [s, v] = r.split(':').map(Number), got = await Promise.all(wantLangs().map(l => text(l, s)));
+      const [s, v] = r.split(':').map(Number), got = await Promise.all(wantLangs().map(l => verseText(l, s, v)));
       surahs.add(s);
-      out.push(`Quran ${r}`, ...got.map(t => String(t[v - 1] || '').trim()).filter(Boolean), '');
+      out.push(`Quran ${r}`, ...got.map(t => String(t || '').trim()).filter(Boolean), '');
     }
     return `${$('#sb-msg').value.trim()}\n\n${out.join('\n')}${[...surahs].map(s => `${location.origin}${BASE}surah/${s}/`).join('\n')}`;
   }
@@ -297,22 +328,19 @@
     const dlg = document.getElementById('fav-pop'), body = $('#fav-body'); if (!dlg) return;
     const refs = [...favs].sort((x, y) => refKey(x) - refKey(y));
     $('#fav-meta').textContent = refs.length ? `${refs.length} verse${refs.length === 1 ? '' : 's'}` : '';
-    body.innerHTML = refs.length ? '<p class="v-err">Loading…</p>' : '<p class="v-err">No favourites yet. Tap ☆ beside any verse to keep it here.</p>';
+    body.innerHTML = refs.length ? LOADING('Loading your verses…') : '<p class="v-err">No favourites yet. Tap ☆ beside any verse to keep it here.</p>';
     if (!dlg.open) dlg.showModal();
     syncBars();
     if (!refs.length) return;
     const want = ['ar', 'en', 'ta'].filter(l => langs[l]);
     try {
-      let html = '';
-      for (const r of refs) {
-        const [s, v] = r.split(':').map(Number), got = await Promise.all(want.map(l => text(l, s))), t = Object.fromEntries(want.map((l, i) => [l, got[i]]));
-        html += verseTools(s, v);
-        if (t.ar) html += `<div class="v-ar" lang="ar">${esc(t.ar[v - 1])}<span class="v-mark" aria-label="verse ${v}">${AR(v)}</span></div>`;
-        if (t.en) html += `<div class="v-en" data-speak="en"><sup>${r}</sup><span class="vt">${esc(t.en[v - 1])}</span>${speakBtn(r, 'English')}</div>`;
-        if (t.ta) html += `<div class="v-ta" lang="ta" data-speak="ta"><sup>${r}</sup><span class="vt">${esc(t.ta[v - 1])}</span>${speakBtn(r, 'Tamil')}</div>`;
-        html += `<p class="v-links"><a href="${BASE}surah/${s}/">Open surah ${s}</a></p></div>`;
-      }
-      body.innerHTML = `<div class="fav-list">${html}</div>`;
+      // Each verse comes from its own flow's small file (the map says which), all at once.
+      const rows = await Promise.all(refs.map(async r => {
+        const [s, v] = r.split(':').map(Number), [f, ...got] = await Promise.all([flowOf(s, v), ...want.map(l => verseText(l, s, v))]);
+        return { s, v, f, t: Object.fromEntries(want.map((l, i) => [l, [got[i]]])) };
+      }));
+      body.innerHTML = `<div class="fav-list">${rows.map(({ s, v, f, t }) => verseHTML(s, v, t, 0,
+        `<p class="v-links">${f ? `<a href="${BASE}surah/${s}/#f-${s}-${f.a}">${esc(f.name)} · ${rng(s, f.a, f.b)}</a>` : ''}<a href="${BASE}surah/${s}/">Open surah ${s}</a></p>`)).join('')}</div>`;
     } catch (e) { body.innerHTML = `<p class="v-err">The verses could not be loaded (${esc(e.message)}).</p>`; }
   }
 
@@ -321,18 +349,12 @@
     const box = $('.fl-verses', li);
     const s = +li.dataset.s, a = +li.dataset.a, b = +li.dataset.b;
     const want = ['ar', 'en', 'ta'].filter(l => langs[l]);
-    box.innerHTML = '<p class="v-err">Loading verses…</p>';
+    box.innerHTML = LOADING('Loading verses…');
     try {
-      const got = await Promise.all(want.map(l => text(l, s)));
+      const got = await Promise.all(want.map(l => flowText(l, s, a, b))); // this flow's verses only
       const t = Object.fromEntries(want.map((l, i) => [l, got[i]]));
       let html = '';
-      for (let v = a; v <= b; v++) {
-        html += verseTools(s, v);
-        if (t.ar) html += `<div class="v-ar" lang="ar">${esc(t.ar[v - 1])}<span class="v-mark" aria-label="verse ${v}">${AR(v)}</span></div>`;
-        if (t.en) html += `<div class="v-en" data-speak="en"><sup>${s}:${v}</sup><span class="vt">${esc(t.en[v - 1])}</span>${speakBtn(`${s}:${v}`, 'English')}</div>`;
-        if (t.ta) html += `<div class="v-ta" lang="ta" data-speak="ta"><sup>${s}:${v}</sup><span class="vt">${esc(t.ta[v - 1])}</span>${speakBtn(`${s}:${v}`, 'Tamil')}</div>`;
-        html += '</div>';
-      }
+      for (let v = a; v <= b; v++) html += verseHTML(s, v, t, v - a);
       const q = `https://quran.com/${s}/${a}` + (b !== a ? `-${b}` : '');
       const nm = $('.fl-open', li).textContent;
       const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<button type="button" class="v-readall" data-read-all data-read-label="Read this flow aloud">${ICON_SPEAK} Read this flow aloud</button>` : '';
@@ -364,6 +386,9 @@
   $$('[data-expand-all]').forEach(b => b.addEventListener('click', () => {
     const all = $$('.timeline .fl');
     const anyClosed = all.some(li => !li.classList.contains('open'));
+    // Every flow of one surah at once: one file per language for the whole surah beats one per flow.
+    const su = $('[data-surah]');
+    if (anyClosed && su && document.body.dataset.kind === 'surah') wantLangs().forEach(l => text(l, +su.dataset.surah).catch(() => {}));
     all.forEach(li => toggle(li, anyClosed));
     b.textContent = anyClosed ? 'Close all' : 'Open all';
   }));
@@ -378,40 +403,53 @@
   /* ---------- search ---------- */
   const dlg = $('#search'), q = $('#q'), results = $('#results');
   let sel = -1, items = [];
-  const openSearch = () => { dlg.hidden = false; q.value = ''; results.innerHTML = ''; q.focus(); index().catch(() => {}); };
+  const openSearch = () => { dlg.hidden = false; q.value = ''; results.innerHTML = ''; q.focus(); qmap().catch(() => {}); };
   const closeSearch = () => { dlg.hidden = true; };
   $$('[data-open-search]').forEach(b => b.addEventListener('click', openSearch));
   $$('[data-close-search]').forEach(b => b.addEventListener('click', closeSearch));
   dlg.addEventListener('click', e => { if (e.target === dlg) closeSearch(); });
   const norm = s => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9: ]+/g, ' ').replace(/\s+/g, ' ').trim();
-  async function runSearch() {
-    const raw = q.value.trim();
+  function drawResults(out, busy, offer) {
+    items = out.slice(0, 40);
+    if (offer) items.push({ href: '#', deep: true, title: 'Search the flow descriptions too', meta: '', sub: `Passages whose description mentions “${offer}”` });
+    sel = items.length ? 0 : -1;
+    results.innerHTML = (items.length ? items.map((it, i) => `<li${it.deep ? ' class="r-more"' : ''}><a href="${esc(it.href)}"${it.deep ? ' data-deep' : ''} aria-selected="${i === sel}"><b>${esc(it.title)}</b><em>${esc(it.meta)}</em>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</a></li>`).join('')
+      : busy ? '' : '<li><a href="#" aria-disabled="true"><b>No match</b><small>Try a topic like Patience or Moses, a surah name, or a verse like 2:255.</small></a></li>') +
+      (busy ? `<li class="r-load">${LOADING('Searching the flow descriptions…')}</li>` : '');
+  }
+  results.addEventListener('click', e => { if (e.target.closest('[data-deep]')) { e.preventDefault(); runSearch(true); } });
+  /* Surahs, topics and verse references come from the small map. Flow descriptions are in the larger index,
+     fetched only when nothing else matches, when the reader asks for them, or when it is loaded anyway. */
+  let searchGen = 0;
+  async function runSearch(deepAsked = false) {
+    const raw = q.value.trim(), my = ++searchGen;
     if (!raw) { results.innerHTML = ''; items = []; return; }
-    let data;
-    try { data = await index(); } catch (e) { results.innerHTML = '<li><a href="#">Search is unavailable offline.</a></li>'; return; }
+    let m;
+    try { m = await qmap(); } catch (e) { results.innerHTML = '<li><a href="#">Search is unavailable offline.</a></li>'; return; }
+    if (my !== searchGen) return;
     const out = [];
     const ref = raw.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
     if (ref) {
-      const s = +ref[1], v = +ref[2], su = data.surahs[s - 1];
-      if (su && v >= 1 && v <= su[4]) {
-        const f = data.flows.find(f => f[1] === s && f[2] <= v && f[3] >= v);
-        out.push(f ? { href: `${BASE}surah/${s}/#f-${s}-${f[2]}`, title: f[4], meta: rng(s, f[2], f[3]), sub: `Verse ${s}:${v} is in this flow of ${su[1]}` }
-                   : { href: `https://quran.com/${s}/${v}`, title: `${su[1]} ${s}:${v}`, meta: 'not grouped yet', sub: 'Read this verse on quran.com' });
+      const s = +ref[1], v = +ref[2], su = m.su[s - 1];
+      if (su && v >= 1 && v <= su[3]) {
+        const f = await flowOf(s, v);
+        out.push(f ? { href: `${BASE}surah/${s}/#f-${s}-${f.a}`, title: f.name, meta: rng(s, f.a, f.b), sub: `Verse ${s}:${v} is in this flow of ${su[0]}` }
+                   : { href: `https://quran.com/${s}/${v}`, title: `${su[0]} ${s}:${v}`, meta: 'not grouped yet', sub: 'Read this verse on quran.com' });
       }
     }
-    const n = norm(raw);
+    const n = ref ? '' : norm(raw), words = n ? n.split(' ') : [];
+    const hit = str => { const h = norm(str); return words.every(w => h.includes(w)); };
     if (n) {
-      const words = n.split(' ');
-      const hit = str => { const h = norm(str); return words.every(w => h.includes(w)); };
-      data.surahs.forEach(s => { if (hit(`${s[0]} ${s[1]} ${s[2]}`) || s[3].includes(raw)) out.push({ href: `${BASE}surah/${s[0]}/`, title: `${s[0]}. ${s[1]}`, meta: `${s[4]} verses`, sub: s[2] }); });
-      const topics = new Map();
-      data.flows.forEach(f => { if (hit(f[4])) { const t = topics.get(f[5]) || { name: f[4], n: 0, v: 0 }; t.n++; t.v += f[3] - f[2] + 1; topics.set(f[5], t); } });
-      [...topics.entries()].sort((a, b) => b[1].v - a[1].v).forEach(([slug, t]) => out.push({ href: `${BASE}topic/${slug}/`, title: t.name, meta: `topic · ${t.v} verses`, sub: `${t.n} flow${t.n > 1 ? 's' : ''}` }));
-      data.flows.filter(f => !hit(f[4]) && f[6] && hit(f[6])).slice(0, 30).forEach(f => out.push({ href: `${BASE}surah/${f[1]}/#f-${f[1]}-${f[2]}`, title: f[4], meta: rng(f[1], f[2], f[3]), sub: f[6] }));
+      m.su.forEach((s, i) => { if (hit(`${i + 1} ${s[0]} ${s[1]}`) || s[2].includes(raw)) out.push({ href: `${BASE}surah/${i + 1}/`, title: `${i + 1}. ${s[0]}`, meta: `${s[3]} verses`, sub: s[1] }); });
+      m.t.filter(t => hit(t[1])).sort((a, b) => b[3] - a[3]).forEach(t => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${t[3]} verses`, sub: `${t[2]} flow${t[2] > 1 ? 's' : ''}` }));
     }
-    items = out.slice(0, 40); sel = items.length ? 0 : -1;
-    results.innerHTML = items.length ? items.map((it, i) => `<li><a href="${esc(it.href)}" aria-selected="${i === sel}"><b>${esc(it.title)}</b><em>${esc(it.meta)}</em>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</a></li>`).join('')
-      : '<li><a href="#" aria-disabled="true"><b>No match</b><small>Try a topic like Patience or Moses, a surah name, or a verse like 2:255.</small></a></li>';
+    const deep = n.length >= 3 && (deepAsked === true || !out.length || files.has('data/index.json'));
+    drawResults(out, deep, !deep && n.length >= 3 ? raw : '');
+    if (!deep) return;
+    let data; try { data = await index(); } catch (e) { if (my === searchGen) drawResults(out, false); return; }
+    if (my !== searchGen) return;
+    data.flows.filter(f => !hit(f[4]) && f[6] && hit(f[6])).slice(0, 30).forEach(f => out.push({ href: `${BASE}surah/${f[1]}/#f-${f[1]}-${f[2]}`, title: f[4], meta: rng(f[1], f[2], f[3]), sub: f[6] }));
+    drawResults(out, false);
   }
   let tmr; q.addEventListener('input', () => { clearTimeout(tmr); tmr = setTimeout(runSearch, 120); });
   q.addEventListener('keydown', e => {
@@ -420,7 +458,11 @@
       e.preventDefault(); if (!links.length) return;
       sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + links.length) % links.length;
       links.forEach((a, i) => a.setAttribute('aria-selected', String(i === sel))); links[sel].scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'Enter' && links[sel] && items.length) { e.preventDefault(); track('search', { term: q.value }); location.href = links[sel].href; closeSearch(); }
+    } else if (e.key === 'Enter' && links[sel] && items.length) {
+      e.preventDefault();
+      if (links[sel].hasAttribute('data-deep')) { runSearch(true); return; }
+      track('search', { term: q.value }); location.href = links[sel].href; closeSearch();
+    }
   });
 
   /* ---------- global keys ---------- */
@@ -651,24 +693,16 @@
     const byName = (a, b) => a.name.localeCompare(b.name);
     const SORTS = { v: (a, b) => b.v - a.v || byName(a, b), vasc: (a, b) => a.v - b.v || byName(a, b), az: byName, read: (a, b) => a.first - b.first };
     const order = arr => arr.slice().sort(SORTS[tsort]);
-    let firstNo = null; // topic -> number of its first flow in the Quran, from the search index
-    const allTopics = () => order(meta.topics.map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3], first: firstNo ? firstNo.get(t[0]) : 0 })));
-    let surahTopics = null; // surah -> [{slug, name, n, v, first}], built from the search index on first use
+    // meta.topics: [slug, name, flows, verses, number of the topic's first flow], so every sort works without more data
+    const allTopics = () => order(meta.topics.map(t => ({ slug: t[0], name: t[1], n: t[2], v: t[3], first: t[4] || 0 })));
+    let surahTopics = null; // surah -> [{slug, name, n, v, first}], from data/bysurah.json on first use
     async function loadSurahTopics() {
       if (surahTopics) return surahTopics;
-      const data = await index(), per = new Map(), fn = new Map();
-      for (const f of data.flows) { // the index is in reading order, so a topic's first sight is its first flow
-        if (!fn.has(f[5])) fn.set(f[5], f[0]);
-        if (!per.has(f[1])) per.set(f[1], new Map());
-        const m = per.get(f[1]); if (!m.has(f[5])) m.set(f[5], { slug: f[5], name: f[4], n: 0, v: 0, first: f[0] });
-        const t = m.get(f[5]); t.n++; t.v += f[3] - f[2] + 1;
-      }
-      firstNo = fn;
-      surahTopics = new Map([...per].map(([s, m]) => [s, [...m.values()]]));
+      const bs = await getJSON('data/bysurah.json'); // per surah [topic index (A-Z, as meta.topics), flows, verses, first flow]
+      surahTopics = new Map(bs.map((arr, i) => [i + 1, arr.map(([ti, n, v, first]) => ({ slug: meta.topics[ti][0], name: meta.topics[ti][1], n, v, first }))]));
       return surahTopics;
     }
     async function drawTopicList() {
-      if (tsort === 'read' && !firstNo) { try { await loadSurahTopics(); } catch (e) { /* keeps the list in its last order */ } }
       const ts = allTopics();
       $('#topic-list').innerHTML = ts.map(t => `<li><a href="${BASE}topic/${t.slug}/" data-topic="${t.slug}">${esc(t.name)}</a><span>${t.v}</span></li>`).join('');
       $('#tl-count').textContent = `${ts.length} topics`;
@@ -713,8 +747,9 @@
     let popOpener = null, popCur = null;
     async function openTopic(slug, surah = 0) {
       const t = topicBy.get(slug); if (!t) return;
-      let data; try { data = await index(); } catch (e) { location.href = `${BASE}topic/${slug}/`; return; }
-      const all = data.flows.filter(f => f[5] === slug), flows = surah ? all.filter(f => f[1] === surah) : all;
+      // This topic's flows only (a few hundred bytes): [number, surah, first, last, description]
+      let rows; try { rows = await getJSON(`data/topic/${slug}.json`); } catch (e) { location.href = `${BASE}topic/${slug}/`; return; }
+      const all = rows.map(r => [r[0], r[1], r[2], r[3], t[1], slug, r[4]]), flows = surah ? all.filter(f => f[1] === surah) : all;
       const v = flows.reduce((n, f) => n + f[3] - f[2] + 1, 0);
       if (pop.contains(speech.el)) speech.stop();
       popCur = { slug, surah };

@@ -414,3 +414,7 @@ html.modal-open { overflow: hidden }
 /* Languages on the Flows page and in the popup; the Flows search row stays in reach while scrolling. */
 .f-langs, .tp-langs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px }
 #flows > .filters:first-of-type { position: sticky; top: calc(62px + env(safe-area-inset-top, 0px)); z-index: 6; background: var(--bg); padding: 8px 0; margin-top: -8px }
+/* Loading a flow's verses, favourites, a topic: a small spinner with the words. */
+.v-load { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .9rem; margin: 6px 0 }
+.v-load .qf-loader { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--gold) 22%, transparent); border-top-color: var(--gold); animation: qf-spin .8s linear infinite }
+@media (prefers-reduced-motion: reduce) { .v-load .qf-loader { animation: none } }
