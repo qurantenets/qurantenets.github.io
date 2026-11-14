@@ -704,6 +704,6 @@ body { padding-bottom: var(--bars-h, 0px) }
 .tour-note { margin: 10px 2px 0; font-size: .84rem; color: var(--muted) }
 
 /* The verification notice: a red strip at the top of every page while the flows are being checked. */
-.verify-banner { margin: 0; padding: 9px 16px; background: #b42318; color: #fff; text-align: center; font: 500 .9rem/1.45 var(--body) }
+.verify-banner { margin: 14px 0 0; border-radius: 10px; padding: 10px 16px; background: #b42318; color: #fff; text-align: center; font: 500 .9rem/1.45 var(--body) }
 .verify-banner a { color: #fff; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere }
 .verify-banner a:focus-visible { outline: 2px solid #fff; outline-offset: 2px }
