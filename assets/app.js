@@ -234,17 +234,17 @@
   const refKey = r => { const [s, v] = r.split(':').map(Number); return s * 1000 + v; };
   const favCount = () => { const n = document.getElementById('fav-n'); if (n) n.textContent = favs.size ? ` ${favs.size}` : ''; };
   favCount();
-  function shareText() { // the message, then each picked verse in the languages on screen, then links to the surahs
+  // The message, then each picked verse in the languages chosen, then links to the surahs. Built from the text files,
+  // not the screen, so a verse picked in a popup that has since closed is still sent. Picking a verse loads its
+  // surah's text (see primeText), so this finishes straight away and the browser still counts it as the tap.
+  const wantLangs = () => ['ar', 'en', 'ta'].filter(l => langs[l]);
+  const primeText = r => wantLangs().forEach(l => text(l, +r.split(':')[0]).catch(() => {}));
+  async function shareText() {
     const out = [], surahs = new Set();
     for (const r of [...picked].sort((x, y) => refKey(x) - refKey(y))) {
-      const el = $(`.v[data-ref="${r}"]`); if (!el) continue;
-      surahs.add(r.split(':')[0]);
-      const ar = $('.v-ar', el), en = $('.v-en .vt', el), ta = $('.v-ta .vt', el);
-      out.push(`Quran ${r}`);
-      if (ar) out.push(ar.firstChild.textContent.trim());
-      if (en) out.push(en.textContent.trim());
-      if (ta) out.push(ta.textContent.trim());
-      out.push('');
+      const [s, v] = r.split(':').map(Number), got = await Promise.all(wantLangs().map(l => text(l, s)));
+      surahs.add(s);
+      out.push(`Quran ${r}`, ...got.map(t => String(t[v - 1] || '').trim()).filter(Boolean), '');
     }
     return `${$('#sb-msg').value.trim()}\n\n${out.join('\n')}${[...surahs].map(s => `${location.origin}${BASE}surah/${s}/`).join('\n')}`;
   }
@@ -270,7 +270,7 @@
   document.addEventListener('change', e => {
     const cb = e.target.closest('[data-pick]'); if (!cb) return;
     const r = cb.closest('.v').dataset.ref;
-    if (cb.checked) picked.add(r); else picked.delete(r);
+    if (cb.checked) { picked.add(r); primeText(r); } else picked.delete(r);
     $$(`.v[data-ref="${r}"] [data-pick]`).forEach(x => { x.checked = cb.checked; });
     drawShareBar();
   });
@@ -284,8 +284,8 @@
       $$(`[data-ref="${r}"] [data-fav]`).forEach(b => { b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', `${on ? 'Remove' : 'Save'} ${r} ${on ? 'from' : 'to'} favourites`); });
       favCount(); toast(on ? `${r} saved to favourites` : `${r} removed from favourites`); return;
     }
-    if (e.target.closest('#sb-copy')) { try { await navigator.clipboard.writeText(shareText()); toast(`Copied ${picked.size} verse${picked.size === 1 ? '' : 's'}`); } catch (err) { toast('Copying did not work in this browser'); } return; }
-    if (e.target.closest('#sb-share')) { try { await navigator.share({ text: shareText() }); } catch (err) { /* closed without sharing */ } return; }
+    if (e.target.closest('#sb-copy')) { try { await navigator.clipboard.writeText(await shareText()); toast(`Copied ${picked.size} verse${picked.size === 1 ? '' : 's'}`); } catch (err) { toast('Copying did not work in this browser'); } return; }
+    if (e.target.closest('#sb-share')) { try { await navigator.share({ text: await shareText() }); } catch (err) { /* closed without sharing */ } return; }
     if (e.target.closest('#sb-clear')) { picked.clear(); $$('[data-pick]').forEach(x => { x.checked = false; }); drawShareBar(); return; }
     if (e.target.closest('#sp-pause')) { if (speech.paused) speech.resume(); else speech.pause(); return; }
     if (e.target.closest('#sp-stop')) { speech.stop(); return; }
