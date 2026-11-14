@@ -11,7 +11,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Literata:opsz,wght@7..72,400;7..72,600&family=Marcellus&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Tamil:wght@400&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=504006484e">
+<link rel="stylesheet" href="/assets/app.css?v=4deef62d57">
 <script>try{var t=localStorage.getItem('qf-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body data-kind="surah" data-base="/">
@@ -44,6 +44,7 @@
     <label class="t-only"><input type="checkbox" data-desc checked> Descriptions</label>
     <label class="t-only"><input type="checkbox" data-count checked> Verse count</label>
     <label class="goto">Go to verse <input type="number" min="1" max="123" inputmode="numeric" placeholder="1–123" data-goto aria-label="Go to verse number (1 to 123)"></label>
+    <button type="button" class="ghost" data-share-page>Share</button>
     <button type="button" class="ghost t-only" data-expand-all>Open all</button>
   </div>
   <div class="flow-table no-surah" data-table><div class="fl-head" aria-hidden="true"><span>#</span><span>Topic</span><span>Verses</span><span class="c-n">Count</span></div><ol class="timeline"><li class="sec" aria-hidden="true"><i lang="ar">ع</i>Section 1 · from 11:1</li>
@@ -142,6 +143,16 @@
   <div class="tp-head"><div class="tp-titles"><p class="tp-eyebrow">Saved in this browser</p><h2 id="fav-title">Favourite verses</h2><p class="tp-meta" id="fav-meta"></p></div><button type="button" class="tp-close" data-close-favs aria-label="Close">×</button></div>
   <div class="tp-body" id="fav-body"></div>
 </dialog>
+<dialog class="tp share-pop" id="share-pop" aria-labelledby="sh-title">
+  <div class="tp-head"><div class="tp-titles"><p class="tp-eyebrow">Share</p><h2 id="sh-title"></h2><p class="tp-meta" id="sh-meta"></p></div><button type="button" class="tp-close" data-close-share aria-label="Close">×</button></div>
+  <div class="tp-body sh-body">
+    <div class="sh-row"><input type="text" id="sh-link" readonly aria-label="Link"><button type="button" id="sh-copy-link">Copy link</button></div>
+    <label class="tp-check" id="sh-verses-row"><input type="checkbox" id="sh-verses"> <span id="sh-verses-l">Add the words of the verses</span></label>
+    <p class="sh-note" id="sh-note" hidden></p>
+    <textarea id="sh-text" rows="9" aria-label="Message to send. You can change it." spellcheck="false" placeholder="Preparing the message…"></textarea>
+    <div class="today-acts sh-acts"><button type="button" class="main" id="sh-share" hidden>Share</button><button type="button" id="sh-copy">Copy message</button></div>
+  </div>
+</dialog>
 <div class="consent" id="consent" hidden>
   <p>This site uses Google Analytics to learn which pages help people. Nothing loads unless you allow it.</p>
   <div><button type="button" data-consent="accepted">Allow</button><button type="button" data-consent="declined">No thanks</button></div>
@@ -151,6 +162,6 @@
   <ol class="results" id="results"></ol>
 </div>
 <script>window.QF={base:"/",ga:"G-0FG3FEVN0J",counter:"https://quran-flow-visits.manapparai-com.workers.dev/"};</script>
-<script src="/assets/app.js?v=504006484e" defer></script>
+<script src="/assets/app.js?v=4deef62d57" defer></script>
 </body>
 </html>

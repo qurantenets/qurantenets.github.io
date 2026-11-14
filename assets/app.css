@@ -511,7 +511,7 @@ html.modal-open { overflow: hidden }
 .share-bar button:focus-visible, .sp-bar button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
 .sb-n, .sp-now { font: 500 .8rem var(--mono); color: var(--muted) }
 .sp-now { flex: 1 }
-.qf-toast { position: fixed; left: 50%; top: 76px; transform: translateX(-50%); z-index: 70; padding: 8px 14px; border-radius: 999px; background: var(--fg); color: var(--bg); font-size: .86rem }
+.qf-toast { position: fixed; left: 50%; top: 76px; transform: translateX(-50%); z-index: 70; padding: 8px 14px; border-radius: 999px; background: var(--fg); color: var(--bg); font-size: .86rem; pointer-events: none /* a note, never in the way of a click on what is under it */ }
 /* Languages on the Flows page and in the popup; the Flows search row stays in reach while scrolling. */
 .f-langs, .tp-langs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px }
 #flows > .filters:first-of-type { position: sticky; top: calc(62px + env(safe-area-inset-top, 0px)); z-index: 6; background: var(--bg); padding: 8px 0; margin-top: -8px }
@@ -707,3 +707,30 @@ body { padding-bottom: var(--bars-h, 0px) }
 .verify-banner { margin: 14px 0 0; border-radius: 10px; padding: 10px 16px; background: #b42318; color: #fff; text-align: center; font: 500 .9rem/1.45 var(--body) }
 .verify-banner a { color: #fff; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere }
 .verify-banner a:focus-visible { outline: 2px solid #fff; outline-offset: 2px }
+
+/* Share: one small popup for a topic, a flow or a surah. It holds the link and a message ready to send, which the
+   reader may change first. */
+@media (min-width: 641px) { .share-pop { width: min(560px, calc(100% - 32px)) } }
+.share-pop { padding-bottom: env(safe-area-inset-bottom, 0px) }
+.sh-body { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 18px }
+.sh-row { display: flex; gap: 8px; align-items: center }
+.sh-row input { flex: 1; min-width: 0; box-sizing: border-box; font: 500 .8rem var(--mono); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px }
+.sh-row button { all: unset; cursor: pointer; box-sizing: border-box; min-height: 36px; display: inline-flex; align-items: center; padding: 4px 14px; border-radius: 999px; border: 1px solid var(--line); font: 500 .86rem var(--body); color: var(--fg); white-space: nowrap }
+.sh-row button:hover { border-color: var(--accent); color: var(--accent) }
+.sh-row button:focus-visible, .sh-row input:focus-visible, .sh-body textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.sh-body textarea { box-sizing: border-box; width: 100%; min-height: 190px; max-height: 42vh; resize: vertical; font: 400 .9rem/1.5 var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px }
+.sh-note { margin: 0; font-size: .84rem; color: var(--muted) }
+.share-pop.busy .sh-acts button { opacity: .6; cursor: progress }
+.tp-share, [data-share-page] { display: inline-flex; align-items: center; gap: 6px }
+.v-share { all: unset; display: inline-flex; align-items: center; gap: 6px; color: var(--accent); cursor: pointer; font-weight: 500 }
+.v-share:hover { text-decoration: underline }
+.v-share:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px }
+.ctl .ghost + .ghost { margin-left: 0 }
+@media (max-width: 640px) {
+  .sh-body textarea, .sh-row input { font-size: 16px } /* smaller type makes a phone zoom in on the box */
+  .sh-acts button { flex: 1 1 auto; justify-content: center }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .share-pop[open] { animation: qf-rise .22s cubic-bezier(.2, .8, .2, 1) }
+  .share-pop[open]::backdrop { animation: qf-fade .22s ease-out }
+}

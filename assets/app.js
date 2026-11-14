@@ -120,6 +120,7 @@
      long utterance after about 15 seconds. */
   const ICON_SPEAK = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
   const ICON_STOP = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>';
+  const ICON_SHARE = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M12 15V4M8 7.5 12 3.5l4 4M6 11.5v7a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5v-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const speakBtn = (ref, lang) => ('speechSynthesis' in window ? `<button type="button" class="v-speak" data-speak-one aria-label="Read ${ref} aloud in ${lang}" title="Read aloud">${ICON_SPEAK}</button>` : '');
   const LANG_TAG = { en: 'en', ta: 'ta' };
   const speech = {
@@ -303,17 +304,17 @@
   const wantLangs = () => ['ar', 'en', 'ta'].filter(l => langs[l]);
   const primeText = r => { const [s, v] = r.split(':').map(Number); wantLangs().forEach(l => verseText(l, s, v).catch(() => {})); };
   async function shareText() {
-    const out = [], surahs = new Set();
+    const out = [], first = new Map(); // each surah and the first verse chosen in it: where its link lands
     for (const r of [...picked].sort((x, y) => refKey(x) - refKey(y))) {
       const [s, v] = r.split(':').map(Number), got = await Promise.all(wantLangs().map(l => verseText(l, s, v)));
-      surahs.add(s);
+      if (!first.has(s)) first.set(s, v);
       out.push(`Quran ${r}`, ...got.map(t => String(t || '').trim()).filter(Boolean), '');
     }
-    return `${$('#sb-msg').value.trim()}\n\n${out.join('\n')}${[...surahs].map(s => `${location.origin}${BASE}surah/${s}/`).join('\n')}`;
+    return `${$('#sb-msg').value.trim()}\n\n${out.join('\n')}${[...first].map(([s, v]) => `${location.origin}${BASE}surah/${s}/#v${v}`).join('\n')}`;
   }
   // The bars sit at the bottom; while a popup is open they move into it, or the popup would cover them.
   function syncBars() {
-    const host = document.querySelector('dialog[open]') || document.body, sb = document.getElementById('share-bar'), sp = document.getElementById('sp-bar');
+    const host = document.querySelector('dialog[open]:not(#share-pop)') || document.body, sb = document.getElementById('share-bar'), sp = document.getElementById('sp-bar');
     for (const b of [sb, sp]) if (b && b.parentNode !== host) host.appendChild(b);
     if (sp && sb) { sp.classList.toggle('lift', !sb.hidden); if (!sb.hidden) sp.style.setProperty('--sb-h', sb.offsetHeight + 'px'); }
     // On the page the bars float over its end, so the page keeps that much room under itself (--bars-h) and nothing
@@ -335,7 +336,7 @@
   function toast(msg, ms = 2200) {
     let t = document.getElementById('qf-toast');
     if (!t) { t = document.createElement('div'); t.id = 'qf-toast'; t.className = 'qf-toast'; t.setAttribute('role', 'status'); }
-    (document.querySelector('dialog[open]') || document.body).appendChild(t);
+    (document.querySelector('#share-pop[open]') || document.querySelector('dialog[open]') || document.body).appendChild(t);
     t.textContent = msg; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, ms);
   }
   document.addEventListener('change', e => {
@@ -362,6 +363,9 @@
     if (e.target.closest('#sp-stop')) { speech.stop(); return; }
     const gone = e.target.closest('[data-fav-drop]'); // a saved verse that does not exist
     if (gone) { favs.delete(gone.dataset.favDrop); store.set('qf-favs', [...favs]); favCount(); openFavs(); return; }
+    const shf = e.target.closest('[data-share-flow]');
+    if (shf) { const li = shf.closest('.fl'); if (li) shareFlow(li); return; }
+    if (e.target.closest('[data-share-page]')) { sharePage(); return; }
     if (e.target.closest('[data-reload]')) { location.reload(); return; }
     if (e.target.closest('[data-open-favs]')) { openFavs(); return; }
     if (e.target.closest('[data-close-favs]')) { document.getElementById('fav-pop').close(); }
@@ -384,6 +388,129 @@
   // A click on the dimmed area around a popup closes it; a click on a gap inside the popup does not.
   const outside = (d, e) => { if (e.target !== d) return false; const r = d.getBoundingClientRect(); return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom; };
   { const fp = document.getElementById('fav-pop'); if (fp) fp.addEventListener('click', e => { if (outside(fp, e)) fp.close(); }); }
+
+  // The address names what is on screen: each pair is written into it, an empty value is left out, and a state
+  // that is all defaults adds nothing. The step in the browser's history stays the same one.
+  function setQuery(pairs) {
+    const u = new URL(location.href);
+    for (const [k, v] of Object.entries(pairs)) { if (v === '' || v == null) u.searchParams.delete(k); else u.searchParams.set(k, v); }
+    const next = u.pathname + u.search.replace(/%2C/gi, ',') + u.hash;
+    if (next === location.pathname + location.search + location.hash) return;
+    try { history.replaceState(history.state, '', next); } catch (e) { /* a browser allows only so many of these a minute */ }
+  }
+
+  /* Share: a topic, a flow or a surah goes out as its link and a message ready to send: its name, where it is, what
+     each flow says and, when they fit, the words of the verses in the languages switched on. The reader may change
+     the message before it goes. */
+  const siteUrl = path => `${location.origin}${BASE}${path}`;
+  const SHARE_MAX = 60, SHARE_AUTO = 10, SHARE_LONG = 40; // verses one message can carry; how many are added unasked; above this many flows the list is names only
+  async function versesBlock(s, a, b) {
+    const got = await Promise.all(wantLangs().map(l => flowText(l, s, a, b))), out = [];
+    for (let v = a; v <= b; v++) out.push(`Quran ${s}:${v}`, ...got.map(t => String(t[v - a] || '').trim()).filter(Boolean), '');
+    return out.join('\n').trim();
+  }
+  // A list of flows under a heading. head: the lines above the list; flows: [{ label, desc, s, a, b }]
+  const listItem = (kind, id, title, meta, link, head, flows) => ({
+    kind, id, title, meta, link, verses: flows.reduce((n, f) => n + f.b - f.a + 1, 0),
+    async text(withVerses) {
+      const brief = flows.length > SHARE_LONG, out = [...head, ''];
+      const words = withVerses ? await Promise.all(flows.map(f => versesBlock(f.s, f.a, f.b))) : [];
+      flows.forEach((f, i) => {
+        out.push(`${flows.length > 1 ? `${i + 1}. ` : ''}${f.label}`);
+        if (!brief && f.desc) out.push(f.desc);
+        if (withVerses) out.push('', words[i]);
+        if (!brief || withVerses) out.push('');
+      });
+      return out.join('\n').trim();
+    }
+  });
+  const flowItem = (name, surah, desc, s, a, b) => ({
+    kind: 'flow', id: `${s}:${a}`, title: name, meta: `${surah} ${rng(s, a, b)} · ${pl(b - a + 1, 'verse')}`, link: siteUrl(`surah/${s}/#f-${s}-${a}`), verses: b - a + 1,
+    async text(withVerses) {
+      const out = [`${name} · ${surah} ${rng(s, a, b)} · Quran Flow`];
+      if (desc) out.push(desc);
+      if (withVerses) out.push('', await versesBlock(s, a, b));
+      return out.join('\n');
+    }
+  });
+  // rows: [number, surah, first, last, description]; surah: 0 for the whole topic, or the one surah on screen
+  const topicItem = (slug, name, rows, surah, surahName) => {
+    const fl = surah ? rows.filter(r => r[1] === surah) : rows, v = fl.reduce((n, r) => n + r[3] - r[2] + 1, 0);
+    const title = surah ? `${name} in ${surahName(surah)}` : name;
+    const meta = `${pl(fl.length, 'flow')} · ${pl(v, 'verse')}` + (surah ? '' : ` · ${pl(new Set(rows.map(r => r[1])).size, 'surah')}`);
+    return listItem('topic', surah ? `${slug}@${surah}` : slug, title, meta, siteUrl(surah ? `?topic=${encodeURIComponent(slug)}&in=${surah}` : `topic/${slug}/`),
+      [`${title} · Quran Flow`, meta], fl.map(r => ({ label: `${surahName(r[1])} ${rng(r[1], r[2], r[3])}`, desc: r[4], s: r[1], a: r[2], b: r[3] })));
+  };
+  const sharePop = document.getElementById('share-pop');
+  let shareItem = null, shareGen = 0, shareBusy = false;
+  async function drawShare() {
+    const it = shareItem, my = ++shareGen, box = $('#sh-verses'), withVerses = box.checked && !$('#sh-verses-row').hidden;
+    shareBusy = true; sharePop.classList.add('busy');
+    let body;
+    try { body = await it.text(withVerses); }
+    catch (e) {
+      if (my !== shareGen) return;
+      if (withVerses) { box.checked = false; toast('The words of the verses did not arrive. The message is ready without them.', 4000); drawShare(); return; }
+      body = `${it.title} · Quran Flow`;
+    }
+    if (my !== shareGen) return; // asked again meanwhile: the later one writes the message
+    const ta = $('#sh-text'); ta.value = `${body}\n\n${it.link}`; ta.scrollTop = 0;
+    shareBusy = false; sharePop.classList.remove('busy');
+  }
+  function openShare(item) {
+    if (!sharePop) return;
+    shareItem = item;
+    $('#sh-title').textContent = item.title; $('#sh-meta').textContent = item.meta; $('#sh-link').value = item.link;
+    const n = item.verses, fits = n >= 1 && n <= SHARE_MAX, note = $('#sh-note'), can = typeof navigator.share === 'function';
+    $('#sh-verses-row').hidden = !fits; $('#sh-verses').checked = fits && n <= SHARE_AUTO;
+    $('#sh-verses-l').textContent = `Add the words of the ${n === 1 ? 'verse' : pl(n, 'verse')}`;
+    note.hidden = fits; note.textContent = fits ? '' : `${pl(n, 'verse')} are too many for one message, so it lists the flows. The link opens them all.`;
+    $('#sh-share').hidden = !can; $('#sh-copy').classList.toggle('main', !can);
+    $('#sh-text').value = '';
+    if (!sharePop.open) { sharePop.showModal(); document.documentElement.classList.add('modal-open'); }
+    drawShare();
+    track('share_open', { content_type: item.kind, item_id: item.id });
+  }
+  async function shareFlow(li) { // one flow, from its open verses
+    const s = +li.dataset.s, a = +li.dataset.a, b = +li.dataset.b, c = $('.c-surah', li), d = $('.fl-desc', li);
+    let surah = c ? c.textContent.trim() : '';
+    if (!surah) { try { surah = (await qmap()).su[s - 1][0]; } catch (e) { surah = `Surah ${s}`; } }
+    openShare(flowItem($('.fl-open', li).textContent.trim(), surah, d ? d.textContent.trim() : '', s, a, b));
+  }
+  function sharePage() { // the topic or the surah this page is, from the rows already on it
+    const sec = $('.surah[data-surah], .topic[data-slug]'); if (!sec) return;
+    const txt = (sel, el) => (($(sel, el) || {}).textContent || '').trim();
+    const fl = $$('.timeline .fl', sec).map(li => ({ s: +li.dataset.s, a: +li.dataset.a, b: +li.dataset.b, name: txt('.fl-open', li), desc: txt('.fl-desc', li), surah: txt('.c-surah', li) }));
+    if (sec.dataset.slug) {
+      openShare(topicItem(sec.dataset.slug, txt('h1', sec), fl.map(f => [0, f.s, f.a, f.b, f.desc]), 0, s => (fl.find(f => f.s === s) || {}).surah || `Surah ${s}`));
+      return;
+    }
+    const S = +sec.dataset.surah, mean = txt('.sh-mean', sec), name = txt('h1', sec).slice(0, mean ? -mean.length : undefined).trim();
+    const meta = `${pl(+($('[data-goto]', sec) || {}).max || 0, 'verse')} · ${pl(fl.length, 'flow')}`;
+    openShare(listItem('surah', String(S), name, meta, siteUrl(`surah/${S}/`), [`${name}${mean ? ` (${mean})` : ''} · Surah ${S} · Quran Flow`, meta],
+      fl.map(f => ({ label: `${f.name} · ${rng(S, f.a, f.b)}`, desc: f.desc, s: S, a: f.a, b: f.b }))));
+  }
+  if (sharePop) {
+    $$('[data-share-page]').forEach(b => { b.innerHTML = `${ICON_SHARE} Share`; });
+    const copy = async (el, done, method) => {
+      try { await navigator.clipboard.writeText(el.value); toast(done); track('share', { method, content_type: shareItem.kind, item_id: shareItem.id }); }
+      catch (e) { el.focus(); el.select(); toast('Copying did not work in this browser. The text is selected: copy it from here.', 4000); }
+    };
+    sharePop.addEventListener('click', async e => {
+      if (outside(sharePop, e) || e.target.closest('[data-close-share]')) { sharePop.close(); return; }
+      if (!shareItem) return;
+      if (e.target.closest('#sh-copy-link')) { copy($('#sh-link'), 'Link copied', 'copy_link'); return; }
+      if (shareBusy) return; // the message is still being put together
+      if (e.target.closest('#sh-copy')) { copy($('#sh-text'), 'Message copied', 'copy_message'); return; }
+      if (e.target.closest('#sh-share')) {
+        try { await navigator.share({ text: $('#sh-text').value }); track('share', { method: 'share_sheet', content_type: shareItem.kind, item_id: shareItem.id }); }
+        catch (err) { /* closed without sharing */ }
+      }
+    });
+    $('#sh-verses').addEventListener('change', drawShare);
+    $('#sh-link').addEventListener('focus', e => e.target.select());
+    window.addEventListener('popstate', () => { if (sharePop.open) sharePop.close(); }); // Back leaves it
+  }
   let favGen = 0;
   // A saved verse that cannot be shown gets a line of its own, so it never hides the others.
   const favBad = (r, why) => `<p class="v-err fav-bad">${why === 'none'
@@ -394,6 +521,8 @@
      the ? button. Nothing comes from YouTube until the popup opens, and the player only when Play is pressed. */
   const TOUR = { web: '6H-bmyVdfWs', mobile: 'ImU2BTG9bWU' }; // youtu.be/6H-bmyVdfWs and youtube.com/shorts/ImU2BTG9bWU
   const tourId = () => (matchMedia('(max-width: 760px)').matches && TOUR.mobile ? TOUR.mobile : TOUR.web);
+  // On a first visit the tour is in front. What the address asks for (a topic, a verse) is done once it is closed.
+  function afterTour(fn) { const d = document.getElementById('tour-pop'); if (d && d.open) d.addEventListener('close', () => fn(), { once: true }); else fn(); }
   function openTour(play) {
     const dlg = document.getElementById('tour-pop'); if (!dlg) return;
     const id = tourId(), box = $('#tour-video');
@@ -543,7 +672,7 @@
       const q = `https://quran.com/${s}/${a}` + (b !== a ? `-${b}` : '');
       const nm = $('.fl-open', li).textContent;
       const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<button type="button" class="v-readall" data-read-all data-read-label="Read this flow aloud">${ICON_SPEAK} Read this flow aloud</button>` : '';
-      html += `<div class="v-links">${readAll}<a href="${q}" rel="noopener">Listen and read on quran.com</a><a href="${BASE}surah/${s}/#f-${s}-${a}">Link to this flow</a>${li.dataset.slug ? `<a href="${BASE}topic/${li.dataset.slug}/">Every flow named ${esc(nm)}</a>` : ''}${correctionLink(s, a, b, nm)}</div>`;
+      html += `<div class="v-links">${readAll}<button type="button" class="v-share" data-share-flow>${ICON_SHARE} Share this flow</button><a href="${q}" rel="noopener">Listen and read on quran.com</a><a href="${BASE}surah/${s}/#f-${s}-${a}">Link to this flow</a>${li.dataset.slug ? `<a href="${BASE}topic/${li.dataset.slug}/">Every flow named ${esc(nm)}</a>` : ''}${correctionLink(s, a, b, nm)}</div>`;
       speech.drop(box);
       box.innerHTML = html;
       markHard(box);
@@ -579,11 +708,27 @@
     all.forEach(li => toggle(li, anyClosed));
     b.textContent = anyClosed ? 'Close all' : 'Open all';
   }));
+  /* A place the page was brought to before its fonts were in does not stay on screen: when they arrive the lines
+     above it wrap again, the page grows and the place is carried away (a link to a verse on a first visit ended a
+     screen or more below it). So once the fonts are in the page is brought there again, unless the reader has moved
+     the page or asked for another place in the meantime. */
+  let placeGen = 0;
+  const holdPlace = (el, block) => {
+    const my = ++placeGen;
+    if (!document.fonts || document.fonts.status !== 'loading') return;
+    let moved = false;
+    const own = () => { moved = true; }, evs = ['wheel', 'touchstart', 'keydown', 'pointerdown'];
+    evs.forEach(n => window.addEventListener(n, own, { capture: true, passive: true }));
+    document.fonts.ready.then(() => {
+      evs.forEach(n => window.removeEventListener(n, own, { capture: true }));
+      if (!moved && my === placeGen && el.isConnected) el.scrollIntoView({ block, behavior: 'auto' });
+    });
+  };
   const hashFlow = () => {
     const m = location.hash.match(/^#f-(\d+)-(\d+)$/);
     if (!m) return;
     const li = document.getElementById(location.hash.slice(1));
-    if (li) { toggle(li, true); li.scrollIntoView({ block: 'start' }); }
+    if (li) { toggle(li, true); li.scrollIntoView({ block: 'start' }); holdPlace(li, 'start'); }
   };
   if (document.body.dataset.kind !== 'home') { hashFlow(); window.addEventListener('hashchange', hashFlow); }
 
@@ -628,23 +773,29 @@
     document.addEventListener('qf-langs', () => { if (readP) readP = drawRead(); });
     setMode(mode, false); // a view a link asked for (#read, or a flow) is shown, not remembered
     // Go to verse: in Flows the flow holding it opens; either way the verse comes into view and is marked.
-    async function goTo(v) {
+    async function goTo(v, mark) { // mark: the reader asked for the verse here, so the address takes it
       if (!(Number.isInteger(v) && v >= 1 && v <= +gotoBox.max)) { if (gotoBox.value !== '') toast(`This surah has ${gotoBox.max} verses: choose 1 to ${gotoBox.max}.`); return; }
       if (mode === 'read') await readP;
       else { const li = $$('.timeline .fl', surahSec).find(x => +x.dataset.a <= v && v <= +x.dataset.b); if (!li) return; if (!li.classList.contains('open')) await toggle(li, true); }
       const el = $(`${mode === 'read' ? '#read' : '.timeline'} .v[data-ref="${S}:${v}"]`, surahSec); if (!el) return;
       const far = Math.abs(el.getBoundingClientRect().top) > innerHeight * 2; // a long jump goes straight there
       el.scrollIntoView({ block: 'center', behavior: far || matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      holdPlace(el, 'center');
       el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+      if (mark) { try { history.replaceState(history.state, '', `#v${v}`); } catch (e) { /* the address stays as it was */ } }
     }
     // Enter always goes; leaving the box goes only to a number not gone to yet (otherwise clicking elsewhere after
     // Enter would jump back to the verse in the middle of that click).
     let lastGo = 0;
-    gotoBox.addEventListener('change', () => { const v = +gotoBox.value; if (v !== lastGo) { lastGo = v; goTo(v); } });
-    gotoBox.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); lastGo = +gotoBox.value; goTo(lastGo); } });
+    gotoBox.addEventListener('change', () => { const v = +gotoBox.value; if (v !== lastGo) { lastGo = v; goTo(v, true); } });
+    gotoBox.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); lastGo = +gotoBox.value; goTo(lastGo, true); } });
+    // #v<n> is a verse's own address: the page goes to it in the view the reader keeps (Flows opens its flow).
+    const hashVerse = () => { const m = location.hash.match(/^#v(\d+)$/); if (!m) return false; gotoBox.value = m[1]; lastGo = +m[1]; goTo(lastGo); return true; };
+    afterTour(hashVerse);
     // A link to one of this surah's flows, or to Read through, followed while the page is already open, is answered
     // in the view on screen: Read through goes to the flow's first verse instead of leaving for the list.
     window.addEventListener('hashchange', () => {
+      if (hashVerse()) return;
       const f = location.hash.match(/^#f-(\d+)-(\d+)$/);
       if (f && +f[1] === S && mode === 'read') goTo(+f[2]);
       else if (location.hash === '#read' && mode !== 'read') setMode('read', false);
@@ -695,7 +846,11 @@
     items = items.filter(it => !it.head); // keyboard moves over links only
   }
   results.addEventListener('click', e => {
-    const a = e.target.closest('[data-act]'); if (!a) return;
+    const a = e.target.closest('[data-act]');
+    if (!a) { // an ordinary result: the search closes, also when its link only moves this page (a verse of the surah on screen)
+      if (e.target.closest('a[href]') && e.button === 0 && !(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)) closeSearch();
+      return;
+    }
     e.preventDefault();
     const act = a.dataset.act;
     if (act === 'deep') runSearch(true); else runSearch(false, act.slice(6));
@@ -715,7 +870,7 @@
       const s = +ref[1], v = +ref[2], su = m.su[s - 1];
       if (su && v >= 1 && v <= su[3]) {
         const f = await flowOf(s, v);
-        out.push(f ? { href: `${BASE}surah/${s}/#f-${s}-${f.a}`, title: f.name, meta: rng(s, f.a, f.b), sub: `Verse ${s}:${v} is in this flow of ${su[0]}` }
+        out.push(f ? { href: `${BASE}surah/${s}/#v${v}`, title: f.name, meta: rng(s, f.a, f.b), sub: `Verse ${s}:${v} is in this flow of ${su[0]}` }
                    : { href: `https://quran.com/${s}/${v}`, title: `${su[0]} ${s}:${v}`, meta: 'not grouped yet', sub: 'Read this verse on quran.com' });
       }
     }
@@ -762,7 +917,7 @@
       const f = await flowOf(s, v), txt = lang === 'ta' ? NFC(all[k]) : all[k];
       const first = txt.search(re), from = Math.max(0, first - 50), cut = txt.slice(from, from + 170);
       const html = (from ? '…' : '') + esc(cut).replace(new RegExp(re.source, re.flags), x => `<mark>${x}</mark>`) + (from + 170 < txt.length ? '…' : '');
-      rows.push({ href: f ? `${BASE}surah/${s}/#f-${s}-${f.a}` : `${BASE}surah/${s}/`, title: `${s}:${v}${f ? ` · ${f.name}` : ''}`, meta: m.su[s - 1][0], html });
+      rows.push({ href: `${BASE}surah/${s}/#v${v}`, title: `${s}:${v}${f ? ` · ${f.name}` : ''}`, meta: m.su[s - 1][0], html });
     }
     if (my !== searchGen) return;
     const head = { head: true, title: hits.length ? `${hits.length.toLocaleString()} verse${hits.length === 1 ? '' : 's'} with “${raw}” in ${lang === 'ta' ? 'Tamil' : 'English'}${hits.length > 60 ? ' · the first 60 (add a word to narrow)' : ''}` : `No verse has all of “${raw}” in ${lang === 'ta' ? 'Tamil' : 'English'}` };
@@ -868,6 +1023,7 @@
     const applyView = () => { table.classList.toggle('hide-desc', !fd.checked); table.classList.toggle('hide-count', !fc.checked); };
     applyView();
     let meta = null, all = null, rows = [], shown = 0, kb = -1, gen = 0, sort = { key: 'no', dir: 1 };
+    let fromLink = false; // the address named the Flows filters: they are shown as sent, and not saved over the reader's own
     const chunks = new Map();
     const chunk = k => { if (!chunks.has(k)) chunks.set(k, fetch(`${BASE}data/flows/c${k}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).catch(e => { chunks.delete(k); throw e; })); return chunks.get(k); }; // a part that failed is asked for again
     const metaP = fetch(BASE + 'data/flows/meta.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
@@ -942,7 +1098,8 @@
     async function apply() {
       const my = ++gen;
       const q = fq.value.trim(), s = +fs.value || 0, t = [...sel];
-      store.set('qf-filter', { s: fs.value }); store.set('qf-topics', t);
+      if (fromLink) fromLink = false; else { store.set('qf-filter', { s: fs.value }); store.set('qf-topics', t); }
+      if (VIEW === 'flows') setQuery({ q, surah: fs.value, topics: t.join(','), cats: [...cats].join(','), group: fg.value, sort: sort.key === 'no' && sort.dir === 1 ? '' : (sort.dir === 1 ? '' : '-') + sort.key });
       awayFromEnd(); moreEl.hidden = true;
       const gb = fg.value;
       table.classList.toggle('grouped', gb === 'topic'); // under a topic heading the rows don't repeat the topic's name
@@ -999,14 +1156,33 @@
         return `<option value="${s[0]}"${n ? '' : ' disabled'}>${s[0]}. ${esc(s[1])} · ${k} topic${k === 1 ? '' : 's'} · ${n} flow${n === 1 ? '' : 's'}</option>`;
       }).join('');
       const st = store.obj('qf-filter');
-      if (st.s && fs.querySelector(`option[value="${CSS.escape(String(st.s))}"]:not([disabled])`)) fs.value = st.s;
       m.topics.forEach(t => topicBy.set(t[0], t));
-      cats = new Set(store.arr('qf-cats').filter(id => (m.cats || []).some(c => c[0] === id))); drawCatChips();
-      store.arr('qf-topics').forEach(x => { if (topicBy.has(x)) sel.add(x); }); if (st.t && topicBy.has(st.t)) sel.add(st.t);
+      // A link may name what to show (the Flows filters, or the Topics view): it is shown as sent, and the reader's
+      // own saved choices are left as they were until the reader changes something.
+      const P = new URLSearchParams(location.search), csv = k => (P.get(k) || '').split(',').filter(Boolean);
+      const okCat = id => (m.cats || []).some(c => c[0] === id), okSurah = v => v && fs.querySelector(`option[value="${CSS.escape(String(v))}"]:not([disabled])`);
+      const topicsLink = VIEW === 'topics' && ['view', 'sort', 'cats'].some(k => P.has(k));
+      fromLink = VIEW === 'flows' && ['q', 'surah', 'topics', 'cats', 'group', 'sort'].some(k => P.has(k));
+      if (fromLink) {
+        fq.value = (P.get('q') || '').slice(0, 80);
+        if (okSurah(P.get('surah'))) fs.value = P.get('surah');
+        csv('topics').forEach(x => { if (topicBy.has(x)) sel.add(x); });
+        cats = new Set(csv('cats').filter(okCat));
+        fg.value = ['topic', 'surah', 'cat'].includes(P.get('group')) ? P.get('group') : '';
+        const so = (P.get('sort') || '').match(/^(-?)(no|name|count|surah)$/);
+        if (so) { sort = { key: so[2], dir: so[1] ? -1 : 1 }; $$('[data-sort]', table).forEach(x => x.setAttribute('aria-sort', x.dataset.sort === sort.key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none')); }
+      } else {
+        if (okSurah(st.s)) fs.value = st.s;
+        cats = new Set((topicsLink ? csv('cats') : store.arr('qf-cats')).filter(okCat));
+        store.arr('qf-topics').forEach(x => { if (topicBy.has(x)) sel.add(x); }); if (st.t && topicBy.has(st.t)) sel.add(st.t);
+      }
+      drawCatChips();
       drawChips();
       drawToday();
       show(VIEW);
-      offerDayPop();
+      // A topic the address names opens (on a first visit, once the tour is closed). The day's popup is for a visit
+      // that asked for nothing, and on a first visit it waits for the next one, as before.
+      { const tour = !!document.querySelector('#tour-pop[open]'); afterTour(() => { if (!openLinkedTopic() && !tour) offerDayPop(); }); }
       if (VIEW === 'flows') apply(); // the list is only fetched on the Flows page
     }).catch(e => {
       // Nothing on this page works without that one file: say so wherever the reader is looking, with a way to try again.
@@ -1112,6 +1288,10 @@
     /* Sorts: most verses, fewest verses, A-Z, or reading order (where a topic first appears: in the Quran for the
        whole list, in that surah for the By surah view). */
     let tsort = store.get('qf-tsort', 'v'), tview = store.get('qf-tview', 'all');
+    { // a link may name the view and the order: they are shown as sent, and the reader's own saved choice is left as it was
+      const p = new URLSearchParams(location.search);
+      if (VIEW === 'topics' && ['view', 'sort', 'cats'].some(k => p.has(k))) { tview = p.get('view') === 'surah' ? 'surah' : 'all'; tsort = p.get('sort') || 'v'; }
+    }
     if (!['v', 'vasc', 'az', 'read'].includes(tsort)) tsort = 'v';
     const byName = (a, b) => a.name.localeCompare(b.name);
     const SORTS = { v: (a, b) => b.v - a.v || byName(a, b), vasc: (a, b) => a.v - b.v || byName(a, b), az: byName, read: (a, b) => a.first - b.first };
@@ -1152,6 +1332,7 @@
       }));
     }
     function drawTopicsView() {
+      if (VIEW === 'topics') setQuery({ view: tview === 'surah' ? 'surah' : '', sort: tsort === 'v' ? '' : tsort, cats: [...cats].join(',') });
       $$('[data-tview]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tview === tview)));
       $('#tl-sort').value = tsort;
       $('#topic-list').hidden = tview !== 'all'; $('#by-surah').hidden = tview !== 'surah';
@@ -1168,11 +1349,44 @@
     popGroup.checked = store.get('qf-popgroup', false);
     if ('speechSynthesis' in window) { popRead.innerHTML = `${ICON_SPEAK} Read aloud`; popRead.hidden = false; }
     let popOpener = null, popCur = null;
+    // The popup has its own address (?topic=<slug>, and &in=<surah> when it shows one surah only), on whichever of
+    // these pages it is open over. The page's own filters stay in the address beside it.
+    const topicUrl = (slug, surah) => {
+      const u = new URL(location.href);
+      if (slug) u.searchParams.set('topic', slug); else u.searchParams.delete('topic');
+      if (slug && surah) u.searchParams.set('in', surah); else u.searchParams.delete('in');
+      return u.pathname + u.search.replace(/%2C/gi, ',') + u.hash;
+    };
+    function openLinkedTopic() { // the address names a topic: it opens. Says whether it did.
+      const p = new URLSearchParams(location.search), slug = p.get('topic');
+      if (!slug) return false;
+      const n = +p.get('in'), surah = Number.isInteger(n) && n >= 1 && n <= 114 ? n : 0;
+      try {
+        if (!topicBy.has(slug)) { history.replaceState(history.state, '', topicUrl('')); return false; } // no such topic: the page itself
+        // Reloaded with the popup open, this step is already the popup's own: Back still closes it. A link followed
+        // gets the page as a step of its own first, so that closing the popup leaves the reader on the page.
+        if (history.state && history.state.qfTopic) openTopic(slug, surah, true);
+        else { history.replaceState(history.state, '', topicUrl('')); openTopic(slug, surah); }
+      } catch (e) { return false; }
+      return true;
+    }
+    const popShare = $('#tp-share');
+    if (popShare) {
+      popShare.innerHTML = `${ICON_SHARE} Share`;
+      popShare.addEventListener('click', async () => {
+        if (!popCur) return;
+        const { slug, surah } = popCur;
+        let rows; try { rows = await getJSON(`data/topic/${slug}.json`); } catch (e) { toast('The topic did not arrive. Check your connection and try again.', 4000); return; }
+        openShare(topicItem(slug, topicBy.get(slug)[1], rows, surah, surahName));
+      });
+    }
     async function openTopic(slug, surah = 0, fromHistory = false) {
       const t = topicBy.get(slug); if (!t) return;
       // This topic's flows only (a few hundred bytes): [number, surah, first, last, description]
       let rows; try { rows = await getJSON(`data/topic/${slug}.json`); } catch (e) { location.href = `${BASE}topic/${slug}/`; return; }
-      const all = rows.map(r => [r[0], r[1], r[2], r[3], t[1], slug, r[4]]), flows = surah ? all.filter(f => f[1] === surah) : all;
+      const all = rows.map(r => [r[0], r[1], r[2], r[3], t[1], slug, r[4]]);
+      if (surah && !all.some(f => f[1] === surah)) surah = 0; // a link may name a surah the topic is not in: the whole topic then
+      const flows = surah ? all.filter(f => f[1] === surah) : all;
       const v = flows.reduce((n, f) => n + f[3] - f[2] + 1, 0);
       speech.drop(pop);
       popCur = { slug, surah }; syncCover();
@@ -1203,8 +1417,8 @@
         b.textContent = +b.dataset.dir < 0 ? `‹ ${n.name}` : `${n.name} ›`;
         b.onclick = () => openTopic(n.slug, surah);
       });
-      if (!pop.open) { popOpener = document.activeElement; pop.showModal(); syncBars(); document.documentElement.classList.add('modal-open'); if (fromHistory) history.replaceState({ qfTopic: slug, s: surah, k: LOAD }, ''); else history.pushState({ qfTopic: slug, s: surah, k: LOAD }, ''); }
-      else history.replaceState({ qfTopic: slug, s: surah, k: LOAD }, '');
+      if (!pop.open) { popOpener = document.activeElement; pop.showModal(); syncBars(); document.documentElement.classList.add('modal-open'); if (fromHistory) history.replaceState({ qfTopic: slug, s: surah, k: LOAD }, '', topicUrl(slug, surah)); else history.pushState({ qfTopic: slug, s: surah, k: LOAD }, '', topicUrl(slug, surah)); }
+      else history.replaceState({ qfTopic: slug, s: surah, k: LOAD }, '', topicUrl(slug, surah));
       $('.tp-body', pop).scrollTop = 0;
       if (flows.length <= 3) $$('.fl', popList).forEach(li => toggle(li, true)); // a few passages: show their verses straight away
       syncOpenAll();
@@ -1232,11 +1446,14 @@
       document.documentElement.classList.remove('modal-open');
       if (popOpener && document.contains(popOpener)) popOpener.focus({ preventScroll: true });
     }
-    const closeTopic = () => { if (history.state && history.state.k === LOAD) history.back(); else finishClose(); };
+    const closeTopic = () => {
+      if (history.state && history.state.k === LOAD) history.back();
+      else { finishClose(); if (new URLSearchParams(location.search).has('topic')) history.replaceState(history.state, '', topicUrl('')); }
+    };
     window.addEventListener('popstate', () => {
-      const st = history.state, ours = st && st.k === LOAD;
-      if (pop.open && !ours) finishClose(); // Back
-      else if (!pop.open && ours && topicBy.has(st.qfTopic)) openTopic(st.qfTopic, st.s || 0, true); // Forward, onto the popup's own step
+      const st = history.state, isTopic = !!(st && st.qfTopic && topicBy.has(st.qfTopic));
+      if (pop.open && !isTopic) finishClose(); // Back
+      else if (isTopic && (!pop.open || !popCur || popCur.slug !== st.qfTopic || popCur.surah !== (st.s || 0))) openTopic(st.qfTopic, st.s || 0, true); // Forward, onto the popup's own step (also after a reload)
     });
     pop.addEventListener('cancel', e => { e.preventDefault(); closeTopic(); });
     pop.addEventListener('click', e => { if (outside(pop, e)) closeTopic(); }); // the dimmed area around it
