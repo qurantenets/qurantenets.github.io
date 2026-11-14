@@ -28,6 +28,17 @@
   };
   const index = () => getJSON('data/index.json');
   const qmap = () => getJSON('data/map.json');
+  // Tamil: the Tanzil text stores most vowel signs in two parts (e.g. ொ as ெ + ா); search compares both sides in
+  // one form (NFC) so what people type matches. The text itself is shown exactly as published.
+  const NFC = s => String(s).normalize('NFC');
+  const isTa = s => /[\u0B80-\u0BFF]/.test(s);
+  // A topic's search helpers (data/synonyms.json, "|"-joined): the first one the typed words fit, or ''.
+  const relatedWord = (syn, raw, words) => {
+    if (!syn || (!isTa(raw) && raw.trim().length < 3)) return '';
+    const q = NFC(raw.trim());
+    return syn.split('|').find(w => (isTa(raw) ? NFC(w).includes(q) || q.includes(NFC(w)) : words.length && words.every(x => normWord(w).includes(x)))) || '';
+  };
+  const normWord = s => s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9: ]+/g, ' ').replace(/\s+/g, ' ').trim();
   const text = (lang, s) => getJSON(`data/text/${lang}/${s}.json`); // a whole surah
   // One flow's verses (first..last), taken from the whole surah instead when that is loaded already.
   const flowText = (lang, s, a, b) => (files.has(`data/text/${lang}/${s}.json`) ? text(lang, s).then(t => t.slice(a - 1, b)) : getJSON(`data/v/${lang}/${s}/${a}.json`));
@@ -463,19 +474,27 @@
   $$('[data-close-search]').forEach(b => b.addEventListener('click', closeSearch));
   dlg.addEventListener('click', e => { if (e.target === dlg) closeSearch(); });
   const norm = s => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9: ]+/g, ' ').replace(/\s+/g, ' ').trim();
-  function drawResults(out, busy, offer) {
-    items = out.slice(0, 40);
-    if (offer) items.push({ href: '#', deep: true, title: 'Search the flow descriptions too', meta: '', sub: `Passages whose description mentions “${offer}”` });
+  const VSIZE = { en: 'about 270 KB', ta: 'about 540 KB' };
+  function drawResults(out, busy, offer, verseOffer) {
+    items = out.slice(0, 80);
+    if (offer) items.push({ href: '#', act: 'deep', title: 'Search the flow descriptions too', meta: '', sub: `Passages whose description mentions “${offer}”` });
+    if (verseOffer) items.push({ href: '#', act: `verse-${verseOffer.lang}`, title: `Search the ${verseOffer.lang === 'ta' ? 'Tamil' : 'English'} text of every verse`, meta: '', sub: `Verses with “${verseOffer.q}” · loads ${VSIZE[verseOffer.lang]} once` });
     sel = items.length ? 0 : -1;
-    results.innerHTML = (items.length ? items.map((it, i) => `<li${it.deep ? ' class="r-more"' : ''}><a href="${esc(it.href)}"${it.deep ? ' data-deep' : ''} aria-selected="${i === sel}"><b>${esc(it.title)}</b><em>${esc(it.meta)}</em>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</a></li>`).join('')
+    results.innerHTML = (items.length ? items.map((it, i) => it.head ? `<li class="r-head" role="presentation">${esc(it.title)}</li>` : `<li${it.act ? ' class="r-more"' : ''}><a href="${esc(it.href)}"${it.act ? ` data-act="${it.act}"` : ''} aria-selected="${i === sel}"><b>${esc(it.title)}</b><em>${esc(it.meta)}</em>${it.html ? `<small>${it.html}</small>` : it.sub ? `<small>${esc(it.sub)}</small>` : ''}</a></li>`).join('')
       : busy ? '' : '<li><a href="#" aria-disabled="true"><b>No match</b><small>Try a topic like Patience or Moses, a surah name, or a verse like 2:255.</small></a></li>') +
-      (busy ? `<li class="r-load">${LOADING('Searching the flow descriptions…')}</li>` : '');
+      (busy ? `<li class="r-load">${LOADING(busy === true ? 'Searching the flow descriptions…' : busy)}</li>` : '');
+    items = items.filter(it => !it.head); // keyboard moves over links only
   }
-  results.addEventListener('click', e => { if (e.target.closest('[data-deep]')) { e.preventDefault(); runSearch(true); } });
+  results.addEventListener('click', e => {
+    const a = e.target.closest('[data-act]'); if (!a) return;
+    e.preventDefault();
+    const act = a.dataset.act;
+    if (act === 'deep') runSearch(true); else runSearch(false, act.slice(6));
+  });
   /* Surahs, topics and verse references come from the small map. Flow descriptions are in the larger index,
      fetched only when nothing else matches, when the reader asks for them, or when it is loaded anyway. */
   let searchGen = 0;
-  async function runSearch(deepAsked = false) {
+  async function runSearch(deepAsked = false, verseLang = '') {
     const raw = q.value.trim(), my = ++searchGen;
     if (!raw) { results.innerHTML = ''; items = []; return; }
     let m;
@@ -491,19 +510,49 @@
                    : { href: `https://quran.com/${s}/${v}`, title: `${su[0]} ${s}:${v}`, meta: 'not grouped yet', sub: 'Read this verse on quran.com' });
       }
     }
-    const n = ref ? '' : norm(raw), words = n ? n.split(' ') : [];
+    const ta = isTa(raw), n = ref ? '' : norm(raw), words = n ? n.split(' ') : [];
     const hit = str => { const h = norm(str); return words.every(w => h.includes(w)); };
-    if (n) {
-      m.su.forEach((s, i) => { if (hit(`${i + 1} ${s[0]} ${s[1]}`) || s[2].includes(raw)) out.push({ href: `${BASE}surah/${i + 1}/`, title: `${i + 1}. ${s[0]}`, meta: `${s[3]} verses`, sub: s[1] }); });
-      m.t.filter(t => hit(t[1])).sort((a, b) => b[3] - a[3]).forEach(t => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${t[3]} verses`, sub: `${t[2]} flow${t[2] > 1 ? 's' : ''}` }));
+    if (n || ta) {
+      if (n) m.su.forEach((s, i) => { if (hit(`${i + 1} ${s[0]} ${s[1]}`) || s[2].includes(raw)) out.push({ href: `${BASE}surah/${i + 1}/`, title: `${i + 1}. ${s[0]}`, meta: `${s[3]} verses`, sub: s[1] }); });
+      // Topics by name first, then by a related word: "wedding" finds Marriage, "riba" Interest, தொழுகை Prayer.
+      const named = n ? m.t.filter(t => hit(t[1])) : [], rel = m.t.filter(t => !named.includes(t)).map(t => [t, relatedWord(t[4], raw, words)]).filter(x => x[1]);
+      named.sort((a, b) => b[3] - a[3]).forEach(t => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${t[3]} verses`, sub: `${t[2]} flow${t[2] > 1 ? 's' : ''}` }));
+      rel.sort((a, b) => b[0][3] - a[0][3]).forEach(([t, w]) => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${t[3]} verses`, sub: `${t[2]} flow${t[2] > 1 ? 's' : ''} · related to “${w}”` }));
     }
-    const deep = n.length >= 3 && (deepAsked === true || !out.length || files.has('data/index.json'));
-    drawResults(out, deep, !deep && n.length >= 3 ? raw : '');
+    const vOffer = !ref && (ta || n.length >= 3) && !verseLang ? { lang: ta ? 'ta' : 'en', q: raw } : null;
+    if (verseLang) { await verseSearch(verseLang, raw, out, my); return; }
+    const deep = !ta && n.length >= 3 && (deepAsked === true || !out.length || files.has('data/index.json'));
+    drawResults(out, deep, !deep && n.length >= 3 ? raw : '', vOffer);
     if (!deep) return;
-    let data; try { data = await index(); } catch (e) { if (my === searchGen) drawResults(out, false); return; }
+    let data; try { data = await index(); } catch (e) { if (my === searchGen) drawResults(out, false, '', vOffer); return; }
     if (my !== searchGen) return;
     data.flows.filter(f => !hit(f[4]) && f[6] && hit(f[6])).slice(0, 30).forEach(f => out.push({ href: `${BASE}surah/${f[1]}/#f-${f[1]}-${f[2]}`, title: f[4], meta: rng(f[1], f[2], f[3]), sub: f[6] }));
-    drawResults(out, false);
+    drawResults(out, false, '', vOffer);
+  }
+  /* The words of the verses themselves, in English or Tamil: every verse in one file per language, fetched only
+     when asked for. All the typed words must be in a verse; each result names its flow and shows the words marked. */
+  async function verseSearch(lang, raw, out, my) {
+    drawResults(out, `Loading the ${lang === 'ta' ? 'Tamil' : 'English'} verses (${VSIZE[lang]}, once)…`);
+    let all, m;
+    try { [all, m] = await Promise.all([getJSON(`data/search/${lang}.json`), qmap()]); } catch (e) { if (my === searchGen) drawResults(out, false); return; }
+    if (my !== searchGen) return;
+    const prep = lang === 'ta' ? NFC : x => x.toLowerCase();
+    const ws = prep(raw).split(/\s+/).filter(w => w.length > (lang === 'ta' ? 0 : 1));
+    if (!ws.length) { drawResults(out, false); return; }
+    const re = new RegExp(ws.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), lang === 'ta' ? 'g' : 'gi');
+    const hits = []; let i = 0;
+    m.su.forEach((su, si) => { for (let v = 1; v <= su[3]; v++, i++) { const h = prep(all[i]); if (ws.every(w => h.includes(w))) hits.push([si + 1, v, i]); } });
+    const shown = hits.slice(0, 60), rows = [];
+    for (const [s, v, k] of shown) {
+      const f = await flowOf(s, v), txt = lang === 'ta' ? NFC(all[k]) : all[k];
+      const first = txt.search(re), from = Math.max(0, first - 50), cut = txt.slice(from, from + 170);
+      const html = (from ? '…' : '') + esc(cut).replace(new RegExp(re.source, re.flags), x => `<mark>${x}</mark>`) + (from + 170 < txt.length ? '…' : '');
+      rows.push({ href: f ? `${BASE}surah/${s}/#f-${s}-${f.a}` : `${BASE}surah/${s}/`, title: `${s}:${v}${f ? ` · ${f.name}` : ''}`, meta: m.su[s - 1][0], html });
+    }
+    if (my !== searchGen) return;
+    const head = { head: true, title: hits.length ? `${hits.length.toLocaleString()} verse${hits.length === 1 ? '' : 's'} with “${raw}” in ${lang === 'ta' ? 'Tamil' : 'English'}${hits.length > 60 ? ' · the first 60 (add a word to narrow)' : ''}` : `No verse has all of “${raw}” in ${lang === 'ta' ? 'Tamil' : 'English'}` };
+    drawResults([...out, head, ...rows], false);
+    track('search_verses', { lang, term: raw });
   }
   let tmr; q.addEventListener('input', () => { clearTimeout(tmr); tmr = setTimeout(runSearch, 120); });
   q.addEventListener('keydown', e => {
@@ -514,7 +563,7 @@
       links.forEach((a, i) => a.setAttribute('aria-selected', String(i === sel))); links[sel].scrollIntoView({ block: 'nearest' });
     } else if (e.key === 'Enter' && links[sel] && items.length) {
       e.preventDefault();
-      if (links[sel].hasAttribute('data-deep')) { runSearch(true); return; }
+      if (links[sel].hasAttribute('data-act')) { links[sel].click(); return; }
       track('search', { term: q.value }); location.href = links[sel].href; closeSearch();
     }
   });
@@ -734,9 +783,14 @@
       fchips.innerHTML = [...sel].map(slug => { const t = topicBy.get(slug); return t ? `<span class="f-chip">${esc(t[1])}<small>${t[3]}</small><button type="button" data-unchip="${slug}" aria-label="Remove ${esc(t[1])}">×</button></span>` : ''; }).join('');
     }
     function drawAc() {
-      const q = norm(fq.value);
-      acOpts = !meta || !q ? [] : meta.topics.filter(t => !sel.has(t[0]) && norm(t[1]).includes(q)).sort((a, b) => b[3] - a[3]).slice(0, 12);
-      fac.innerHTML = acOpts.map((t, i) => `<li role="option" data-i="${i}" aria-selected="${i === acSel}">${esc(t[1])}<small>${t[2]} flows · ${t[3]} verses</small></li>`).join('');
+      const raw = fq.value, q = norm(raw), ws = q ? q.split(' ') : [], rel = new Map();
+      acOpts = !meta || (!q && !isTa(raw)) ? [] : meta.topics.filter(t => {
+        if (sel.has(t[0])) return false;
+        if (q && norm(t[1]).includes(q)) return true;
+        const w = relatedWord(t[6], raw, ws); if (w) rel.set(t[0], w);
+        return !!w;
+      }).sort((a, b) => (rel.has(a[0]) - rel.has(b[0])) || b[3] - a[3]).slice(0, 12);
+      fac.innerHTML = acOpts.map((t, i) => `<li role="option" data-i="${i}" aria-selected="${i === acSel}">${esc(t[1])}<small>${rel.has(t[0]) ? `related to “${esc(rel.get(t[0]))}” · ` : ''}${t[2]} flows · ${t[3]} verses</small></li>`).join('');
       fac.hidden = !acOpts.length;
     }
     function pick(t) { sel.add(t[0]); fq.value = ''; acSel = -1; fac.hidden = true; drawChips(); apply(); fq.focus(); }

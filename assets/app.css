@@ -480,3 +480,7 @@ html.modal-open { overflow: hidden }
 .cats button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
 .cats .cats-all .cat-dot { display: none }
 #flows .cats { flex: 1 0 100%; margin: 0 }
+/* Search: a heading over verse results, the matched words marked, the "search more" rows set apart. */
+#results .r-head { padding: 12px 14px 4px; font: 600 .8rem var(--body); color: var(--muted); list-style: none }
+#results mark { background: color-mix(in srgb, var(--gold) 34%, transparent); color: inherit; border-radius: 3px; padding: 0 1px }
+#results .r-more a b { color: var(--accent) }
