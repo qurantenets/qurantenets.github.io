@@ -689,3 +689,21 @@ body { padding-bottom: var(--bars-h, 0px) }
 .eyebrow, .sc-no, .bs-no, .tp-eyebrow, .fl-group-no, .today-eyebrow { color: var(--gold-ink) }
 /* The counts on the two deeper chip shades: the muted grey falls under 4.5:1 there. */
 .tchip.w2 span, .tchip.w3 span { color: color-mix(in srgb, var(--fg) 85%, transparent) }
+
+/* The tour: a ? button in the header, and a popup with the video (16:9 on desktop, 9:16 on phones). */
+.nav-help { all: unset; cursor: pointer; flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); color: var(--accent); font: 600 .92rem var(--body) }
+.nav-help:hover { border-color: var(--accent) }
+.nav-help:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.tour-video { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 12px; overflow: hidden }
+.tour-video.tall { aspect-ratio: 9 / 16; width: min(100%, calc(68vh * 9 / 16)); margin: 0 auto }
+.tour-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0 }
+.tour-play { all: unset; cursor: pointer; position: absolute; inset: 0; display: grid; place-items: center }
+.tour-play img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover }
+.tour-play span { position: relative; width: 68px; height: 48px; display: grid; place-items: center; border-radius: 12px; background: #e00; color: #fff; font-size: 1.4rem }
+.tour-play:focus-visible span { outline: 3px solid #fff; outline-offset: 2px }
+.tour-note { margin: 10px 2px 0; font-size: .84rem; color: var(--muted) }
+
+/* The verification notice: a red strip at the top of every page while the flows are being checked. */
+.verify-banner { margin: 0; padding: 9px 16px; background: #b42318; color: #fff; text-align: center; font: 500 .9rem/1.45 var(--body) }
+.verify-banner a { color: #fff; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere }
+.verify-banner a:focus-visible { outline: 2px solid #fff; outline-offset: 2px }

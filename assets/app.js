@@ -389,6 +389,37 @@
   const favBad = (r, why) => `<p class="v-err fav-bad">${why === 'none'
     ? `${esc(r)}: there is no such verse. <button type="button" class="ghost" data-fav-drop="${esc(r)}">Remove</button>`
     : `${esc(r)} could not be loaded. Check your connection, then open Favourites again.`}</p>`;
+  /* ---------- the tour video: the phone film on phones, the desktop film elsewhere ----------
+     It opens by itself once, on a person's first visit (the day's popup waits for the next visit), and again from
+     the ? button. Nothing comes from YouTube until the popup opens, and the player only when Play is pressed. */
+  const TOUR = { web: '6H-bmyVdfWs', mobile: 'ImU2BTG9bWU' }; // youtu.be/6H-bmyVdfWs and youtube.com/shorts/ImU2BTG9bWU
+  const tourId = () => (matchMedia('(max-width: 760px)').matches && TOUR.mobile ? TOUR.mobile : TOUR.web);
+  function openTour(play) {
+    const dlg = document.getElementById('tour-pop'); if (!dlg) return;
+    const id = tourId(), box = $('#tour-video');
+    box.className = 'tour-video' + (id === TOUR.mobile ? ' tall' : '');
+    const load = () => { box.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1" title="Quran Flow tour" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`; };
+    if (play) load();
+    else {
+      box.innerHTML = `<button type="button" class="tour-play" aria-label="Play the tour"><img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt=""><span aria-hidden="true">▶</span></button>`;
+      $('.tour-play', box).addEventListener('click', load);
+    }
+    if (!dlg.open) dlg.showModal();
+    syncBars();
+  }
+  document.addEventListener('click', e => {
+    if (e.target.closest('[data-open-tour]')) openTour(true);
+    else if (e.target.closest('[data-close-tour]')) document.getElementById('tour-pop').close();
+  });
+  {
+    const d = document.getElementById('tour-pop');
+    if (d) {
+      d.addEventListener('close', () => { $('#tour-video').innerHTML = ''; }); // stops the video
+      d.addEventListener('click', e => { if (e.target === d) d.close(); }); // the dimmed area around it
+      if (!store.get('qf-tour', false)) { store.set('qf-tour', true); if (store.get('qf-tour', false)) openTour(false); }
+    }
+  }
+
   async function openFavs() { // favourite verses, in the languages chosen, loading only their surahs' text
     const dlg = document.getElementById('fav-pop'), body = $('#fav-body'); if (!dlg) return;
     const refs = [...favs].sort((x, y) => refKey(x) - refKey(y));

@@ -11,7 +11,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Literata:opsz,wght@7..72,400;7..72,600&family=Marcellus&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Tamil:wght@400&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=ff66473a73">
+<link rel="stylesheet" href="/assets/app.css?v=bcf5a6a772">
 <script>try{var t=localStorage.getItem('qf-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body data-kind="surah" data-base="/">
@@ -21,11 +21,13 @@
     <a class="brand" href="/">Quran Flow <span lang="ar">تدبّر</span></a>
     <button class="search-btn" type="button" data-open-search aria-label="Search topics, surahs and verses"><span aria-hidden="true">⌕</span><span class="lbl">Search topic, surah or 2:255</span><kbd>/</kbd></button>
     <nav class="nav" aria-label="Main"><a href="/" id="nav-topics"><svg class="ni" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.5" cy="9" r="5"/><circle cx="17" cy="15.5" r="3.5"/><circle cx="8" cy="18.5" r="2"/></svg><span>Topics</span></a><a href="/flows/" id="nav-flows"><svg class="ni" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg><span>Flows</span></a><button type="button" class="nav-search" data-open-search aria-label="Search topics, surahs and verses"><span class="nav-fab"><svg class="ni" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></span><span>Search</span></button><a href="/surahs/" id="nav-surahs" aria-current="page"><svg class="ni" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5c-1.8-1.3-4.3-2-8-2v13c3.7 0 6.2.7 8 2 1.8-1.3 4.3-2 8-2v-13c-3.7 0-6.2.7-8 2zM12 6.5v13"/></svg><span>Surahs</span></a><a href="/quiz/" id="nav-quiz"><svg class="ni" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.3 9.4a2.8 2.8 0 1 1 4.2 2.4c-.9.6-1.5 1.1-1.5 2.2"/><path d="M12 17.2h.01"/></svg><span>Quiz</span></a><a href="/about/" id="nav-about" class="nav-about"><span>About</span></a></nav>
+    <button type="button" class="nav-help" data-open-tour aria-label="Watch the 2-minute tour" title="How to use Quran Flow (video)">?</button>
     <button type="button" class="nav-fav" data-open-favs aria-label="Favourite verses">★<span class="nav-fav-n" id="fav-n"></span></button>
     <button class="theme-btn" type="button" data-theme-toggle aria-label="Switch light or dark">◐</button>
   </div>
 </header>
 <main id="main">
+<p class="verify-banner" role="note">Verification of the flows is in progress. If you spot anything to correct, please email <a href="mailto:qurantenets@gmail.com?subject=Correction%20for%20Quran%20Flow">qurantenets@gmail.com</a>.</p>
 
 <section class="wrap surah" data-surah="63">
   <div class="sh">
@@ -86,6 +88,10 @@
     </div>
   </div>
 </footer>
+<dialog class="tp tour-pop" id="tour-pop" aria-labelledby="tour-title">
+  <div class="tp-head"><div class="tp-titles"><p class="tp-eyebrow">Welcome</p><h2 id="tour-title">A 2-minute tour of Quran Flow</h2></div><button type="button" class="tp-close" data-close-tour aria-label="Close">×</button></div>
+  <div class="tp-body"><div class="tour-video" id="tour-video"></div><p class="tour-note">Plays from YouTube. Watch it again any time with the ? button at the top.</p></div>
+</dialog>
 <div class="share-bar" id="share-bar" hidden role="region" aria-label="Selected verses">
   <span class="sb-n" id="sb-n"></span>
   <input type="text" id="sb-msg" aria-label="Message to send with the verses" value="Hey, I found this on Quran Flow and thought you would like it:">
@@ -108,6 +114,6 @@
   <ol class="results" id="results"></ol>
 </div>
 <script>window.QF={base:"/",ga:"G-0FG3FEVN0J",counter:"https://quran-flow-visits.manapparai-com.workers.dev/"};</script>
-<script src="/assets/app.js?v=ff66473a73" defer></script>
+<script src="/assets/app.js?v=bcf5a6a772" defer></script>
 </body>
 </html>
