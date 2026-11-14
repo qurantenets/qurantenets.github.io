@@ -144,7 +144,7 @@
       vt.innerHTML = text.split(/(\s+)/).map(part => { const st = pos; pos += part.length; return /\S/.test(part) ? `<span class="w" data-i="${st}">${esc(part)}</span>` : part; }).join('');
       return text;
     },
-    unmark(el) { const vt = $('.vt', el); if (vt) vt.textContent = vt.textContent; el.classList.remove('speaking'); const b = $('.v-speak', el); if (b) { b.innerHTML = ICON_SPEAK; b.setAttribute('aria-pressed', 'false'); } },
+    unmark(el) { const vt = $('.vt', el); if (vt) { vt.textContent = vt.textContent; delete vt.dataset.gl; } el.classList.remove('speaking'); markHard(el.parentNode); const b = $('.v-speak', el); if (b) { b.innerHTML = ICON_SPEAK; b.setAttribute('aria-pressed', 'false'); } },
     stop() {
       speech.gen++; speech.queue = []; speech.paused = null;
       try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
@@ -353,8 +353,78 @@
       }));
       body.innerHTML = `<div class="fav-list">${rows.map(({ s, v, f, t }) => verseHTML(s, v, t, 0,
         `<p class="v-links">${f ? `<a href="${BASE}surah/${s}/#f-${s}-${f.a}">${esc(f.name)} · ${rng(s, f.a, f.b)}</a>` : ''}<a href="${BASE}surah/${s}/">Open surah ${s}</a></p>`)).join('')}</div>`;
+      markHard(body);
     } catch (e) { body.innerHTML = `<p class="v-err">The verses could not be loaded (${esc(e.message)}).</p>`; }
   }
+
+
+  /* ---------- meanings of hard English words ----------
+     Words from data/glossary.json get a dotted underline in the English text; tapping one (or Enter on it)
+     shows its plain meaning in a small bubble. The list (a few KB) is fetched once, with the first English
+     verses shown. Readers can turn it off (and on again) from the bubble or the footer. */
+  let glossOn = store.get('qf-gloss', true), glossP = null;
+  const gloss = () => glossP || (glossP = getJSON('data/glossary.json').catch(() => { glossP = null; return null; }));
+  const WORD = /[A-Za-z](?:[A-Za-z'’-]*[A-Za-z])?['’]?/g;
+  async function markHard(root) {
+    if (!glossOn || !root) return;
+    if (!$$('.v-en .vt:not([data-gl])', root).length) return;
+    const g = await gloss(); if (!g || !glossOn) return;
+    for (const vt of $$('.v-en .vt:not([data-gl])', root)) {
+      if (vt.closest('.speaking')) continue; // being read aloud: marked again when it ends
+      const txt = vt.textContent; let html = '', last = 0;
+      for (const m of txt.matchAll(WORD)) {
+        const k = m[0].toLowerCase().replace(/['’]s?$/, ''), ix = g.f[k];
+        if (ix === undefined) continue;
+        html += esc(txt.slice(last, m.index)) + `<span class="gl" role="button" tabindex="0" data-g="${ix}">${esc(m[0])}</span>`;
+        last = m.index + m[0].length;
+      }
+      vt.dataset.gl = '1';
+      if (last) vt.innerHTML = html + esc(txt.slice(last));
+    }
+  }
+  const tip = document.createElement('div');
+  tip.className = 'gl-tip'; tip.id = 'gl-tip'; tip.setAttribute('role', 'tooltip'); tip.hidden = true;
+  document.body.appendChild(tip);
+  let tipFor = null;
+  const hideTip = () => { if (tipFor) tipFor.removeAttribute('aria-describedby'); tip.hidden = true; tipFor = null; };
+  async function showTip(el) {
+    const g = await gloss(); if (!g) return;
+    const [head, meaning, loan] = g.w[+el.dataset.g], said = el.textContent.replace(/['’]s?$/, '');
+    tip.innerHTML = `<b>${esc(said)}</b>${head !== said.toLowerCase() ? ` <small>from “${esc(head)}”</small>` : ''}${loan ? ' <small>· an Arabic word</small>' : ''}<span>${esc(meaning)}</span><button type="button" class="gl-off" data-gloss-toggle>Turn word meanings off</button>`;
+    (el.closest('dialog[open]') || document.body).appendChild(tip);
+    tip.hidden = false; tipFor = el; el.setAttribute('aria-describedby', 'gl-tip');
+    placeTip();
+  }
+  // Under the word (above it near the bottom of the screen); it follows the word while the page or a popup
+  // scrolls, and closes once the word has scrolled out of sight.
+  function placeTip() {
+    if (tip.hidden || !tipFor) return;
+    const r = tipFor.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight || !document.contains(tipFor)) { hideTip(); return; }
+    const w = tip.offsetWidth, h = tip.offsetHeight, below = r.bottom + 8 + h < innerHeight;
+    tip.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
+    tip.style.top = `${below ? r.bottom + 8 : Math.max(8, r.top - h - 8)}px`;
+  }
+  const syncGlossBtns = () => $$('[data-gloss-toggle]').forEach(b => { if (!b.closest('#gl-tip')) b.textContent = glossOn ? 'Turn word meanings off' : 'Turn word meanings on'; });
+  function setGloss(on) {
+    glossOn = on; store.set('qf-gloss', on); hideTip(); syncGlossBtns();
+    if (on) markHard(document);
+    else $$('.v-en .vt[data-gl]').forEach(vt => { vt.textContent = vt.textContent; delete vt.dataset.gl; });
+  }
+  syncGlossBtns();
+  document.addEventListener('click', e => {
+    if (e.target.closest('[data-gloss-toggle]')) { setGloss(!glossOn); return; }
+    const w = e.target.closest('.gl');
+    if (w) { if (tipFor === w && !tip.hidden) hideTip(); else showTip(w); return; }
+    if (!tip.hidden && !e.target.closest('#gl-tip')) hideTip();
+  });
+  document.addEventListener('keydown', e => { // first, so Esc closes the meaning only, not the popup or the filters
+    const w = e.target.closest && e.target.closest('.gl');
+    if (w && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); showTip(w); }
+    else if (e.key === 'Escape' && !tip.hidden) { e.preventDefault(); e.stopImmediatePropagation(); hideTip(); }
+  }, true);
+  window.addEventListener('scroll', placeTip, { passive: true, capture: true });
+  window.addEventListener('resize', placeTip, { passive: true });
 
   /* ---------- opening a flow ---------- */
   async function renderVerses(li) {
@@ -373,6 +443,7 @@
       html += `<div class="v-links">${readAll}<a href="${q}" rel="noopener">Listen and read on quran.com</a><a href="${BASE}surah/${s}/#f-${s}-${a}">Link to this flow</a>${li.dataset.slug ? `<a href="${BASE}topic/${li.dataset.slug}/">Every flow named ${esc(nm)}</a>` : ''}${correctionLink(s, a, b, nm)}</div>`;
       if (box.contains(speech.el)) speech.stop();
       box.innerHTML = html;
+      markHard(box);
     } catch (e) {
       box.innerHTML = `<p class="v-err">The verses could not be loaded (${esc(e.message)}). Check your connection and open the flow again.</p>`;
     }
@@ -435,6 +506,7 @@
           Array.from({ length: f.b - f.a + 1 }, (_, i) => verseHTML(S, f.a + i, t, f.a + i - 1)).join('') + '</section>').join('') +
           (next ? `<p class="rd-next"><a href="${next.getAttribute('href')}#read">Continue reading: ${esc(next.textContent.replace(/\s*→\s*$/, ''))} →</a></p>` : '<p class="rd-next">The end of the Quran.</p>');
         if (keep) { const el = $(`.v[data-ref="${keep.dataset.ref}"]`, readBox); if (el) el.scrollIntoView({ block: 'start' }); }
+        markHard(readBox);
       } catch (e) { readBox.innerHTML = `<p class="v-err">The surah could not be loaded (${esc(e.message)}). Check your connection and try again.</p>`; readP = null; }
     }
     const setMode = m => {
@@ -609,6 +681,7 @@
                             : `<p class="lk-res">Verse <b>${s}:${v}</b> is not in a flow yet.</p>`) +
             verseHTML(s, v, t, 0) +
             `<p class="v-links">${f ? `<a href="${BASE}surah/${s}/#f-${s}-${f.a}">Open this flow in its surah</a>` : ''}<a href="${BASE}surah/${s}/#read">Read the surah through</a></p>`;
+          markHard(lo);
         } catch (e) { if (my === lkGen) lo.innerHTML = `<p class="v-err">That could not be looked up (${esc(e.message)}). Check your connection.</p>`; }
       }
       setMax();

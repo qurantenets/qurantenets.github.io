@@ -449,10 +449,10 @@ html.modal-open { overflow: hidden }
 /* Which flow is a verse in (Surahs page). */
 .lookup { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; margin: 4px 0 22px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface) }
 .lk-title { flex: 1 0 100%; margin: 0; font-weight: 600 }
-.lookup label { display: grid; gap: 4px; font-size: .82rem; color: var(--muted) }
-.lookup select, .lookup input { font: inherit; font-size: .95rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-width: 0 }
-.lookup select { max-width: 230px }
-.lookup input { width: 6.5em }
+.lookup > label { display: grid; gap: 4px; font-size: .82rem; color: var(--muted) }
+.lookup > label select, .lookup > label input { font: inherit; font-size: .95rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-width: 0 }
+.lookup > label select { max-width: 230px }
+.lookup > label input { width: 6.5em }
 .lookup button[type="submit"] { all: unset; cursor: pointer; padding: 7px 16px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 600 }
 .lookup button[type="submit"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
 .lk-out { flex: 1 0 100% }
@@ -484,3 +484,13 @@ html.modal-open { overflow: hidden }
 #results .r-head { padding: 12px 14px 4px; font: 600 .8rem var(--body); color: var(--muted); list-style: none }
 #results mark { background: color-mix(in srgb, var(--gold) 34%, transparent); color: inherit; border-radius: 3px; padding: 0 1px }
 #results .r-more a b { color: var(--accent) }
+/* Hard words: a dotted underline, and the meaning in a small bubble on tap. */
+.gl { text-decoration: underline dotted; text-decoration-color: color-mix(in srgb, var(--gold) 85%, transparent); text-decoration-thickness: 1.5px; text-underline-offset: 3px; cursor: help; border-radius: 3px }
+.gl:hover { background: color-mix(in srgb, var(--gold) 14%, transparent) }
+.gl:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px }
+.gl-tip { position: fixed; z-index: 90; max-width: min(320px, calc(100vw - 16px)); padding: 10px 12px; border-radius: 10px; background: var(--fg); color: var(--bg); font-size: .9rem; line-height: 1.4; box-shadow: 0 10px 28px rgba(0, 0, 0, .25) }
+.gl-tip small { opacity: .75; font-size: .76rem }
+.gl-tip span { display: block; margin-top: 3px }
+.gl-tip .gl-off { all: unset; cursor: pointer; display: inline-block; margin-top: 8px; font-size: .74rem; opacity: .7; text-decoration: underline }
+.link-btn { all: unset; cursor: pointer; text-decoration: underline; color: var(--accent) }
+.link-btn:focus-visible, .gl-tip .gl-off:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
