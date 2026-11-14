@@ -11,7 +11,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Literata:opsz,wght@7..72,400;7..72,600&family=Marcellus&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Tamil:wght@400&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=6326e36dfe">
+<link rel="stylesheet" href="/assets/app.css?v=ff66473a73">
 <script>try{var t=localStorage.getItem('qf-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" defer></script>
 </head>
@@ -87,6 +87,16 @@
   <div class="tp-body"><div class="flow-table grouped tp-table"><ol class="timeline" id="tp-list"></ol></div></div>
   <div class="tp-foot"><button type="button" class="tp-nav" data-dir="-1" hidden></button><a id="tp-page" data-nav href="">Open the topic page</a><button type="button" class="tp-nav" data-dir="1" hidden></button></div>
 </dialog>
+<dialog class="tp day-pop" id="day-pop" aria-labelledby="dp-title" aria-describedby="dp-note">
+  <div class="dp-body">
+    <button type="button" class="tp-close" data-day="close" aria-label="Close">×</button>
+    <p class="tp-eyebrow">Today's topic</p>
+    <h2 id="dp-title"></h2>
+    <p class="dp-meta" id="dp-meta"></p>
+    <p class="dp-note" id="dp-note">A different topic each day, picked at random from those you have not covered yet. It also stays at the top of this page.</p>
+    <div class="today-acts dp-acts"><button type="button" class="main" data-day="open" autofocus>Read it</button><button type="button" data-day="other">Another topic</button><button type="button" data-day="close">Not now</button></div>
+  </div>
+</dialog>
 </main>
 <footer class="foot">
   <div class="foot-in">
@@ -142,6 +152,6 @@
   <ol class="results" id="results"></ol>
 </div>
 <script>window.QF={base:"/",ga:"G-0FG3FEVN0J",counter:"https://quran-flow-visits.manapparai-com.workers.dev/"};</script>
-<script src="/assets/app.js?v=6326e36dfe" defer></script>
+<script src="/assets/app.js?v=ff66473a73" defer></script>
 </body>
 </html>

@@ -455,6 +455,27 @@ html.modal-open { overflow: hidden }
 .today-acts button.main { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600 }
 .today-acts button.main:hover { color: var(--accent-ink); filter: brightness(1.08) }
 .today-acts button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+/* The same topic put in front of the reader once a day: a small popup (a sheet from the bottom on phones) */
+@media (min-width: 641px) { .day-pop { width: min(440px, calc(100% - 32px)) } }
+.dp-body { position: relative; flex: 1 1 auto; min-height: 0; padding: 22px 22px 20px; overflow-y: auto; overscroll-behavior: contain }
+.dp-body .tp-close { position: absolute; top: 8px; right: 8px }
+.dp-body p { margin: 0 }
+.day-pop h2 { margin: 4px 44px 0 0; font: 400 1.7rem/1.2 var(--display); overflow-wrap: anywhere }
+.day-pop h2 .cat-dot { vertical-align: 4px }
+.dp-body .dp-meta { margin-top: 6px; font: 500 .78rem var(--mono); color: var(--muted) }
+.dp-body .dp-note { margin-top: 12px; font-size: .92rem; color: var(--muted) }
+.dp-acts { margin-top: 18px }
+.dp-acts button[hidden] { display: none }
+@media (max-width: 640px) {
+  .dp-body { padding: 20px 18px calc(18px + env(safe-area-inset-bottom, 0px)) }
+  .dp-acts button { flex: 1 1 auto; justify-content: center }
+}
+@keyframes qf-rise { from { opacity: 0; transform: translateY(12px) } }
+@keyframes qf-fade { from { opacity: 0 } }
+@media (prefers-reduced-motion: no-preference) {
+  .day-pop[open] { animation: qf-rise .22s cubic-bezier(.2, .8, .2, 1) }
+  .day-pop[open]::backdrop { animation: qf-fade .22s ease-out }
+}
 .tp-read[aria-pressed="true"] { color: var(--fg) }
 .tp-read:disabled { opacity: .6; cursor: progress }
 .tp-check { display: inline-flex; align-items: center; gap: 6px; font: 500 .84rem var(--body); color: var(--muted); cursor: pointer }

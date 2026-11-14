@@ -975,6 +975,7 @@
       drawChips();
       drawToday();
       show(VIEW);
+      offerDayPop();
       if (VIEW === 'flows') apply(); // the list is only fetched on the Flows page
     }).catch(e => {
       // Nothing on this page works without that one file: say so wherever the reader is looking, with a way to try again.
@@ -1271,6 +1272,7 @@
         today.dataset.slug = slug;
       }
       today.hidden = false;
+      if (dayPop && dayPop.open && !drawDayPop()) dayPop.close(); // the popup says what the card says, or goes
     }
     if (today) today.addEventListener('click', async e => {
       const b = e.target.closest('[data-today]'); if (!b) return;
@@ -1281,8 +1283,43 @@
       }
       const slug = today.dataset.slug;
       await openTopic(slug);
-      if (pop.open && popCur && popCur.slug === slug && !popCur.surah && !isCovered(slug)) setCovered(slug, true); // it did open: counted
+      if (pop.open && popCur && popCur.slug === slug && !popCur.surah && !isCovered(slug)) {
+        setCovered(slug, true); // it did open: counted
+        popOpener = $('[data-today="open"]', today) || popOpener; // the card was redrawn: closing returns to its new button
+      }
     });
+    /* Once a day, on the first load of the home page, today's topic is also put in front of the reader in a small
+       popup; the card above the field stays. Only when there is a topic to offer that is not covered yet, and only
+       when this browser can remember that it was shown (otherwise it would come back on every load). */
+    const dayPop = $('#day-pop');
+    function drawDayPop() {
+      const slug = today.dataset.slug, name = $('.today-name', today), info = $('.today-meta', today);
+      if (!slug || !name || isCovered(slug)) return false;
+      const h = $('#dp-title'); h.innerHTML = name.innerHTML; h.dataset.cat = name.dataset.cat || '';
+      $('#dp-meta').textContent = info ? info.textContent : '';
+      $('[data-day="other"]', dayPop).hidden = !$('[data-today="other"]', today);
+      return true;
+    }
+    function offerDayPop() {
+      if (!dayPop || !today || VIEW !== 'topics' || document.querySelector('dialog[open]')) return;
+      const sd = document.getElementById('search'); if (sd && !sd.hidden) return;
+      if (store.get('qf-daily-pop', '') === dayKey() || !drawDayPop()) return;
+      store.set('qf-daily-pop', dayKey());
+      if (store.get('qf-daily-pop', '') !== dayKey()) return;
+      dayPop.showModal(); document.documentElement.classList.add('modal-open');
+      if (tips.on) setTips(true); // the tips wait behind it: their 30 seconds start when it closes
+    }
+    if (dayPop) {
+      dayPop.addEventListener('click', e => {
+        if (outside(dayPop, e)) { dayPop.close(); return; } // the dimmed area around it
+        const b = e.target.closest('[data-day]'); if (!b) return;
+        if (b.dataset.day === 'other') { drawToday(true); return; }
+        const go = b.dataset.day === 'open' && $('[data-today="open"]', today);
+        dayPop.close();
+        if (go) { go.focus({ preventScroll: true }); go.click(); } // the same as "Read it" on the card
+      });
+      dayPop.addEventListener('close', () => { if (tips.on) setTips(true); }); // now the tips get their 30 seconds in view
+    }
     if (tpCover) tpCover.addEventListener('click', () => { if (popCur) setCovered(popCur.slug, !isCovered(popCur.slug)); });
     // A page left open overnight, or progress changed in another tab: the card follows.
     document.addEventListener('visibilitychange', () => { if (!document.hidden && meta) { drawToday(); syncCover(); } });
@@ -1293,7 +1330,8 @@
        Nothing is remembered between visits, and a redraw (theme, category) keeps whatever state they are in. */
     const TIPS_MS = 30000, tips = { on: true, t: 0 };
     function setTips(on) {
-      clearTimeout(tips.t); tips.on = on; tips.t = on ? setTimeout(() => setTips(false), TIPS_MS) : 0;
+      clearTimeout(tips.t); tips.on = on;
+      tips.t = on && !(dayPop && dayPop.open) ? setTimeout(() => setTips(false), TIPS_MS) : 0; // not counted while the day's popup covers them
       const h = document.getElementById('bub-hint'), q = $('#bubbles [data-tips="toggle"]');
       if (h) h.classList.toggle('off', !on);
       if (q) q.setAttribute('aria-expanded', String(on));
