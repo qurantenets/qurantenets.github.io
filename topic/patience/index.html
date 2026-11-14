@@ -11,7 +11,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Literata:opsz,wght@7..72,400;7..72,600&family=Marcellus&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Tamil:wght@400&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=6a8e4d7d2f">
+<link rel="stylesheet" href="/assets/app.css?v=92f06fdc98">
 <script>try{var t=localStorage.getItem('qf-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body data-kind="topic" data-base="/">
@@ -21,6 +21,7 @@
     <a class="brand" href="/">Quran Flow <span lang="ar">تدبّر</span></a>
     <button class="search-btn" type="button" data-open-search aria-label="Search topics, surahs and verses"><span aria-hidden="true">⌕</span><span class="lbl">Search topic, surah or 2:255</span><kbd>/</kbd></button>
     <nav class="nav" aria-label="Main"><a href="/">Topics</a><a href="/flows/">Flows</a><a href="/surahs/">Surahs</a><a href="/about/">About</a></nav>
+    <button type="button" class="nav-fav" data-open-favs aria-label="Favourite verses">★<span class="nav-fav-n" id="fav-n"></span></button>
     <button class="theme-btn" type="button" data-theme-toggle aria-label="Switch light or dark">◐</button>
   </div>
 </header>
@@ -61,8 +62,23 @@
   <div class="foot-in">
     <p>Quran Flow groups the verses of the Quran, in their own order, into short named passages to help you understand and remember them.</p>
     <p>Arabic text: <a href="https://tanzil.net" rel="noopener">Tanzil Project</a> (Uthmani). English: Saheeh International. Tamil: Jan Turst Foundation. <a href="/about/">Sources and how the flows are made</a>.</p>
+    <p>Your privacy: we do not collect or store your details. Favourites and settings stay in this browser only. Google Analytics runs only if you allow it.</p>
+    <p><a href="mailto:qurantenets@gmail.com?subject=Feature request for Quran Flow&amp;body=What would you like to be able to do?%0A%0AWhere on the site (page or surah)?%0A%0AAnything else:%0A">Request a feature</a></p>
   </div>
 </footer>
+<div class="share-bar" id="share-bar" hidden role="region" aria-label="Selected verses">
+  <span class="sb-n" id="sb-n"></span>
+  <input type="text" id="sb-msg" aria-label="Message to send with the verses" value="Hey, I found this on Quran Flow and thought you would like it:">
+  <button type="button" id="sb-copy">Copy</button><button type="button" id="sb-share" hidden>Share</button><button type="button" id="sb-clear" aria-label="Clear the selection">×</button>
+</div>
+<div class="sp-bar" id="sp-bar" hidden role="region" aria-label="Reading aloud">
+  <span class="sp-now" id="sp-now"></span>
+  <button type="button" id="sp-pause">Pause</button><button type="button" id="sp-stop">Stop</button>
+</div>
+<dialog class="tp fav-pop" id="fav-pop" aria-labelledby="fav-title">
+  <div class="tp-head"><div class="tp-titles"><p class="tp-eyebrow">Saved in this browser</p><h2 id="fav-title">Favourite verses</h2><p class="tp-meta" id="fav-meta"></p></div><button type="button" class="tp-close" data-close-favs aria-label="Close">×</button></div>
+  <div class="tp-body" id="fav-body"></div>
+</dialog>
 <div class="consent" id="consent" hidden>
   <p>This site uses Google Analytics to learn which pages help people. Nothing loads unless you allow it.</p>
   <div><button type="button" data-consent="accepted">Allow</button><button type="button" data-consent="declined">No thanks</button></div>
@@ -72,6 +88,6 @@
   <ol class="results" id="results"></ol>
 </div>
 <script>window.QF={base:"/",ga:"G-0FG3FEVN0J"};</script>
-<script src="/assets/app.js?v=6a8e4d7d2f" defer></script>
+<script src="/assets/app.js?v=92f06fdc98" defer></script>
 </body>
 </html>

@@ -61,7 +61,7 @@
   }));
 
   /* ---------- display languages ---------- */
-  let langs = store.get('qf-langs', { ar: true, en: true, ta: false });
+  let langs = store.get('qf-langs', { ar: false, en: true, ta: true }); // English and Tamil unless the reader chose otherwise
   const syncLangBoxes = () => $$('[data-lang]').forEach(cb => { cb.checked = !!langs[cb.dataset.lang]; });
   syncLangBoxes();
   $$('[data-lang]').forEach(cb => cb.addEventListener('change', () => {
@@ -111,26 +111,47 @@
     },
     unmark(el) { const vt = $('.vt', el); if (vt) vt.textContent = vt.textContent; el.classList.remove('speaking'); const b = $('.v-speak', el); if (b) { b.innerHTML = ICON_SPEAK; b.setAttribute('aria-pressed', 'false'); } },
     stop() {
-      speech.gen++; speech.queue = [];
+      speech.gen++; speech.queue = []; speech.paused = null;
       try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
       if (speech.el) speech.unmark(speech.el);
       speech.el = null;
       $$('[data-read-label][aria-pressed="true"]').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.innerHTML = `${ICON_SPEAK} ${b.dataset.readLabel}`; });
+      speech.bar();
+    },
+    /* Pause keeps the rest of the reading and resumes from the verse it was on (browsers pause unreliably, some
+       not at all on phones, so pausing stops and remembers instead). The bar at the bottom shows it all. */
+    paused: null, btn: null, strikes: {},
+    ref: el => ((el && $('sup', el)) || {}).textContent || '',
+    pause() {
+      if (!speech.el) return;
+      const rest = [speech.el, ...speech.queue], btn = speech.btn, ref = speech.ref(speech.el);
+      speech.stop(); speech.paused = { rest, btn, ref }; speech.bar();
+    },
+    resume() {
+      const p = speech.paused; if (!p) return;
+      speech.say(p.rest.filter(el => document.contains(el)), p.btn && document.contains(p.btn) ? p.btn : null);
+    },
+    bar() {
+      const b = document.getElementById('sp-bar'); if (!b) return;
+      b.hidden = !speech.el && !speech.paused; syncBars(); if (b.hidden) return;
+      $('#sp-now').textContent = speech.paused ? `Paused at ${speech.paused.ref}` : `Reading ${speech.ref(speech.el)}`;
+      $('#sp-pause').textContent = speech.paused ? 'Resume' : 'Pause';
     },
     say(lines, allBtn) { // read lines (verse elements) one after another
       speech.stop();
       const my = speech.gen;
+      speech.btn = allBtn || null;
       speech.queue = lines.slice();
       if (allBtn) { allBtn.setAttribute('aria-pressed', 'true'); allBtn.innerHTML = `${ICON_STOP} Stop reading`; }
       const next = () => {
         if (my !== speech.gen) return;
         if (speech.el) speech.unmark(speech.el);
         const el = speech.queue.shift();
-        if (!el) { speech.el = null; if (allBtn) { allBtn.setAttribute('aria-pressed', 'false'); allBtn.innerHTML = `${ICON_SPEAK} ${allBtn.dataset.readLabel}`; } return; }
+        if (!el) { speech.el = null; speech.bar(); if (allBtn) { allBtn.setAttribute('aria-pressed', 'false'); allBtn.innerHTML = `${ICON_SPEAK} ${allBtn.dataset.readLabel}`; } return; }
         const lang = el.dataset.speak, voice = speech.voice(lang);
         if (!voice) { speech.notice(el, lang, 'none'); next(); return; }
         if (speech.silent.has(lang)) { speech.notice(el, lang, 'silent'); next(); return; }
-        speech.el = el; el.classList.add('speaking');
+        speech.el = el; el.classList.add('speaking'); speech.bar();
         const b = $('.v-speak', el); if (b) { b.innerHTML = ICON_STOP; b.setAttribute('aria-pressed', 'true'); }
         const text = speech.mark(el), words = $$('.w', el);
         el.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
@@ -153,7 +174,14 @@
           u.onstart = () => { t0 = performance.now(); };
           u.onend = () => {
             if (my !== speech.gen) return;
-            if (!t0 || (en - st > 20 && performance.now() - t0 < (en - st) * 12)) { speech.silent.add(lang); speech.notice(el, lang, 'silent'); next(); return; }
+            // One quick piece can be a hiccup (phones drop one now and then): try it again, and only call the voice
+            // silent when it happens twice running.
+            if (!t0 || (en - st > 40 && performance.now() - t0 < (en - st) * 12)) {
+              speech.strikes[lang] = (speech.strikes[lang] || 0) + 1;
+              if (speech.strikes[lang] < 2) { sayPart(k); return; }
+              speech.silent.add(lang); speech.notice(el, lang, 'silent'); next(); return;
+            }
+            speech.strikes[lang] = 0;
             sayPart(k + 1);
           };
           u.onerror = ev => {
@@ -173,7 +201,7 @@
       if ($(`.v-nospeak[data-lang="${lang}"]`, box)) return;
       const msg = {
         none: `This browser has no ${name} voice to read this aloud. Voices can be added in your device's language or speech settings.`,
-        silent: `This browser's ${name} voice made no sound, so ${name} cannot be read aloud here. Chrome on a Mac does this with Tamil; another browser such as Safari may read it.`,
+        silent: `This browser's ${name} voice made no sound, so ${name} cannot be read aloud here. Another browser may read it.`,
         blocked: 'The browser did not allow reading aloud just now. Press the speaker again.',
         error: `Reading aloud stopped: the browser reported "${esc(detail || 'an error')}".`,
       }[why];
@@ -190,6 +218,104 @@
     });
   }
 
+  /* ---------- picking verses to copy or share, and favourites (kept in this browser only) ---------- */
+  const favs = new Set(store.get('qf-favs', [])), picked = new Set();
+  const MAIL = 'qurantenets@gmail.com';
+  function verseTools(s, v) { // opens a verse block: its reference, a box to pick it, and a star to keep it
+    const r = `${s}:${v}`, f = favs.has(r);
+    return `<div class="v" data-ref="${r}"><div class="v-tools"><label class="v-pick"><input type="checkbox" data-pick${picked.has(r) ? ' checked' : ''}> Select ${r}</label>` +
+      `<button type="button" class="v-fav" data-fav aria-pressed="${f}" aria-label="${f ? 'Remove' : 'Save'} ${r} ${f ? 'from' : 'to'} favourites" title="Favourite">${f ? '★' : '☆'}</button></div>`;
+  }
+  function correctionLink(s, a, b, nm) { // an email already holding the flow, its link and the questions to answer
+    const r = rng(s, a, b);
+    const body = `Flow: ${nm} (${r})\nPage: ${location.origin}${BASE}surah/${s}/#f-${s}-${a}\n\nWhat should change (name, description, or where it starts or ends):\n\nWhy (a tafsir or other source helps):\n`;
+    return `<a href="mailto:${MAIL}?subject=${encodeURIComponent(`Correction: ${r} ${nm}`)}&body=${encodeURIComponent(body)}">Suggest a correction</a>`;
+  }
+  const refKey = r => { const [s, v] = r.split(':').map(Number); return s * 1000 + v; };
+  const favCount = () => { const n = document.getElementById('fav-n'); if (n) n.textContent = favs.size ? ` ${favs.size}` : ''; };
+  favCount();
+  function shareText() { // the message, then each picked verse in the languages on screen, then links to the surahs
+    const out = [], surahs = new Set();
+    for (const r of [...picked].sort((x, y) => refKey(x) - refKey(y))) {
+      const el = $(`.v[data-ref="${r}"]`); if (!el) continue;
+      surahs.add(r.split(':')[0]);
+      const ar = $('.v-ar', el), en = $('.v-en .vt', el), ta = $('.v-ta .vt', el);
+      out.push(`Quran ${r}`);
+      if (ar) out.push(ar.firstChild.textContent.trim());
+      if (en) out.push(en.textContent.trim());
+      if (ta) out.push(ta.textContent.trim());
+      out.push('');
+    }
+    return `${$('#sb-msg').value.trim()}\n\n${out.join('\n')}${[...surahs].map(s => `${location.origin}${BASE}surah/${s}/`).join('\n')}`;
+  }
+  // The bars sit at the bottom; while a popup is open they move into it, or the popup would cover them.
+  function syncBars() {
+    const host = document.querySelector('dialog[open]') || document.body, sb = document.getElementById('share-bar'), sp = document.getElementById('sp-bar');
+    for (const b of [sb, sp]) if (b && b.parentNode !== host) host.appendChild(b);
+    if (sp && sb) sp.classList.toggle('lift', !sb.hidden);
+  }
+  function drawShareBar() {
+    const bar = document.getElementById('share-bar'); if (!bar) return;
+    bar.hidden = !picked.size;
+    $('#sb-n').textContent = `${picked.size} verse${picked.size === 1 ? '' : 's'} selected`;
+    $('#sb-share').hidden = !navigator.share;
+    syncBars();
+  }
+  function toast(msg) {
+    let t = document.getElementById('qf-toast');
+    if (!t) { t = document.createElement('div'); t.id = 'qf-toast'; t.className = 'qf-toast'; t.setAttribute('role', 'status'); }
+    (document.querySelector('dialog[open]') || document.body).appendChild(t);
+    t.textContent = msg; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, 2200);
+  }
+  document.addEventListener('change', e => {
+    const cb = e.target.closest('[data-pick]'); if (!cb) return;
+    const r = cb.closest('.v').dataset.ref;
+    if (cb.checked) picked.add(r); else picked.delete(r);
+    $$(`.v[data-ref="${r}"] [data-pick]`).forEach(x => { x.checked = cb.checked; });
+    drawShareBar();
+  });
+  document.addEventListener('click', async e => {
+    const fav = e.target.closest('[data-fav]');
+    if (fav) {
+      const r = fav.closest('[data-ref]').dataset.ref;
+      if (favs.has(r)) favs.delete(r); else favs.add(r);
+      store.set('qf-favs', [...favs]);
+      const on = favs.has(r);
+      $$(`[data-ref="${r}"] [data-fav]`).forEach(b => { b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', `${on ? 'Remove' : 'Save'} ${r} ${on ? 'from' : 'to'} favourites`); });
+      favCount(); toast(on ? `${r} saved to favourites` : `${r} removed from favourites`); return;
+    }
+    if (e.target.closest('#sb-copy')) { try { await navigator.clipboard.writeText(shareText()); toast(`Copied ${picked.size} verse${picked.size === 1 ? '' : 's'}`); } catch (err) { toast('Copying did not work in this browser'); } return; }
+    if (e.target.closest('#sb-share')) { try { await navigator.share({ text: shareText() }); } catch (err) { /* closed without sharing */ } return; }
+    if (e.target.closest('#sb-clear')) { picked.clear(); $$('[data-pick]').forEach(x => { x.checked = false; }); drawShareBar(); return; }
+    if (e.target.closest('#sp-pause')) { if (speech.paused) speech.resume(); else speech.pause(); return; }
+    if (e.target.closest('#sp-stop')) { speech.stop(); return; }
+    if (e.target.closest('[data-open-favs]')) { openFavs(); return; }
+    if (e.target.closest('[data-close-favs]')) { document.getElementById('fav-pop').close(); }
+  });
+  $$('dialog').forEach(d => d.addEventListener('close', () => { if (d.contains(speech.el)) speech.stop(); setTimeout(syncBars); }));
+  async function openFavs() { // favourite verses, in the languages chosen, loading only their surahs' text
+    const dlg = document.getElementById('fav-pop'), body = $('#fav-body'); if (!dlg) return;
+    const refs = [...favs].sort((x, y) => refKey(x) - refKey(y));
+    $('#fav-meta').textContent = refs.length ? `${refs.length} verse${refs.length === 1 ? '' : 's'}` : '';
+    body.innerHTML = refs.length ? '<p class="v-err">Loading…</p>' : '<p class="v-err">No favourites yet. Tap ☆ beside any verse to keep it here.</p>';
+    if (!dlg.open) dlg.showModal();
+    syncBars();
+    if (!refs.length) return;
+    const want = ['ar', 'en', 'ta'].filter(l => langs[l]);
+    try {
+      let html = '';
+      for (const r of refs) {
+        const [s, v] = r.split(':').map(Number), got = await Promise.all(want.map(l => text(l, s))), t = Object.fromEntries(want.map((l, i) => [l, got[i]]));
+        html += verseTools(s, v);
+        if (t.ar) html += `<div class="v-ar" lang="ar">${esc(t.ar[v - 1])}<span class="v-mark" aria-label="verse ${v}">${AR(v)}</span></div>`;
+        if (t.en) html += `<div class="v-en" data-speak="en"><sup>${r}</sup><span class="vt">${esc(t.en[v - 1])}</span>${speakBtn(r, 'English')}</div>`;
+        if (t.ta) html += `<div class="v-ta" lang="ta" data-speak="ta"><sup>${r}</sup><span class="vt">${esc(t.ta[v - 1])}</span>${speakBtn(r, 'Tamil')}</div>`;
+        html += `<p class="v-links"><a href="${BASE}surah/${s}/">Open surah ${s}</a></p></div>`;
+      }
+      body.innerHTML = `<div class="fav-list">${html}</div>`;
+    } catch (e) { body.innerHTML = `<p class="v-err">The verses could not be loaded (${esc(e.message)}).</p>`; }
+  }
+
   /* ---------- opening a flow ---------- */
   async function renderVerses(li) {
     const box = $('.fl-verses', li);
@@ -201,7 +327,7 @@
       const t = Object.fromEntries(want.map((l, i) => [l, got[i]]));
       let html = '';
       for (let v = a; v <= b; v++) {
-        html += '<div class="v">';
+        html += verseTools(s, v);
         if (t.ar) html += `<div class="v-ar" lang="ar">${esc(t.ar[v - 1])}<span class="v-mark" aria-label="verse ${v}">${AR(v)}</span></div>`;
         if (t.en) html += `<div class="v-en" data-speak="en"><sup>${s}:${v}</sup><span class="vt">${esc(t.en[v - 1])}</span>${speakBtn(`${s}:${v}`, 'English')}</div>`;
         if (t.ta) html += `<div class="v-ta" lang="ta" data-speak="ta"><sup>${s}:${v}</sup><span class="vt">${esc(t.ta[v - 1])}</span>${speakBtn(`${s}:${v}`, 'Tamil')}</div>`;
@@ -210,7 +336,7 @@
       const q = `https://quran.com/${s}/${a}` + (b !== a ? `-${b}` : '');
       const nm = $('.fl-open', li).textContent;
       const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<button type="button" class="v-readall" data-read-all data-read-label="Read this flow aloud">${ICON_SPEAK} Read this flow aloud</button>` : '';
-      html += `<div class="v-links">${readAll}<a href="${q}" rel="noopener">Listen and read on quran.com</a><a href="${BASE}surah/${s}/#f-${s}-${a}">Link to this flow</a>${li.dataset.slug ? `<a href="${BASE}topic/${li.dataset.slug}/">Every flow named ${esc(nm)}</a>` : ''}</div>`;
+      html += `<div class="v-links">${readAll}<a href="${q}" rel="noopener">Listen and read on quran.com</a><a href="${BASE}surah/${s}/#f-${s}-${a}">Link to this flow</a>${li.dataset.slug ? `<a href="${BASE}topic/${li.dataset.slug}/">Every flow named ${esc(nm)}</a>` : ''}${correctionLink(s, a, b, nm)}</div>`;
       if (box.contains(speech.el)) speech.stop();
       box.innerHTML = html;
     } catch (e) {
@@ -498,7 +624,7 @@
     }));
 
     document.addEventListener('keydown', e => {
-      if ($('#flows').hidden || !dlg.hidden || $('#topic-pop').open) return;
+      if ($('#flows').hidden || !dlg.hidden || document.querySelector('dialog[open]')) return;
       const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
       if (e.key === 'Escape') { if (!fac.hidden) { fac.hidden = true; return; } if (typing) document.activeElement.blur(); clearFilters(); return; }
       if (typing) return;
@@ -617,7 +743,7 @@
         b.textContent = +b.dataset.dir < 0 ? `‹ ${n.name}` : `${n.name} ›`;
         b.onclick = () => openTopic(n.slug, surah);
       });
-      if (!pop.open) { popOpener = document.activeElement; pop.showModal(); document.documentElement.classList.add('modal-open'); history.pushState({ qfTopic: slug, k: LOAD }, ''); }
+      if (!pop.open) { popOpener = document.activeElement; pop.showModal(); syncBars(); document.documentElement.classList.add('modal-open'); history.pushState({ qfTopic: slug, k: LOAD }, ''); }
       else history.replaceState({ qfTopic: slug, k: LOAD }, '');
       $('.tp-body', pop).scrollTop = 0;
       if (flows.length <= 3) $$('.fl', popList).forEach(li => toggle(li, true)); // a few passages: show their verses straight away

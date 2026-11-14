@@ -389,3 +389,28 @@ html.modal-open { overflow: hidden }
   .tp-table .c-rg { grid-column: 3; grid-row: 1 }
   .tp-table .c-n { display: none }
 }
+
+/* Verse tools: pick to copy or share, star to keep. */
+.v-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .78rem; color: var(--muted) }
+.v-pick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-family: var(--mono) }
+.v-pick input { accent-color: var(--accent) }
+.v-fav { all: unset; cursor: pointer; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; font-size: 1.05rem; color: var(--gold) }
+.v-fav:hover { background: var(--soft) }
+.v-fav:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.nav-fav { all: unset; cursor: pointer; color: var(--gold); padding: 2px 4px; white-space: nowrap }
+.nav-fav-n { font: 500 .78rem var(--mono); color: var(--muted) }
+.nav-fav:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.fav-list { display: grid; gap: 16px }
+/* Bottom bars: selected verses, and reading aloud (above it when both show). */
+.share-bar, .sp-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: min(720px, calc(100% - 24px)); padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--fg); box-shadow: 0 10px 30px rgba(0, 0, 0, .2); font-size: .88rem }
+.sp-bar.lift { bottom: calc(84px + env(safe-area-inset-bottom, 0px)) }
+.share-bar input { flex: 1 1 220px; min-width: 0; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px }
+.share-bar button, .sp-bar button { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); font-weight: 500 }
+#sb-copy, #sb-share, #sp-pause { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+.share-bar button:focus-visible, .sp-bar button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.sb-n, .sp-now { font: 500 .8rem var(--mono); color: var(--muted) }
+.sp-now { flex: 1 }
+.qf-toast { position: fixed; left: 50%; top: 76px; transform: translateX(-50%); z-index: 70; padding: 8px 14px; border-radius: 999px; background: var(--fg); color: var(--bg); font-size: .86rem }
+/* Languages on the Flows page and in the popup; the Flows search row stays in reach while scrolling. */
+.f-langs, .tp-langs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px }
+#flows > .filters:first-of-type { position: sticky; top: calc(62px + env(safe-area-inset-top, 0px)); z-index: 6; background: var(--bg); padding: 8px 0; margin-top: -8px }
