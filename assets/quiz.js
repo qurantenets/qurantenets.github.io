@@ -1,4 +1,4 @@
-/* Quran Flow - the Quiz page: ten questions made from the flows, and your progress surah by surah.
+/* Quran Tenets - the Quiz page: ten questions made from the flows, and your progress surah by surah.
    Every question comes from the site's own data: the map of flows (data/map.json) and, for a verse question, that
    flow's own verse file. Scores, reading progress and favourites stay in this browser; they can be downloaded
    and restored from a file to keep them safe or move them to another device. */
@@ -179,11 +179,11 @@
     const qz = e.target.closest('[data-quiz]');
     if (qz) { e.preventDefault(); $('#qz-s').value = qz.dataset.quiz; box.hidden = true; setup.hidden = false; setup.scrollIntoView({ block: 'center' }); $('#qz-s').focus(); return; }
     if (e.target.closest('[data-export]')) {
-      const data = { app: 'quran-flow', version: 1, saved: new Date().toISOString() };
+      const data = { app: 'quran-tenets', version: 1, saved: new Date().toISOString() };
       KEYS.forEach(k => { data[k] = store.get(k, null); });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
-      a.download = `quran-flow-progress-${data.saved.slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove();
+      a.download = `quran-tenets-progress-${data.saved.slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       return;
     }
@@ -197,7 +197,7 @@
     const inp = e.target.closest('[data-import]'); if (!inp || !inp.files[0]) return;
     try {
       const d = JSON.parse(await inp.files[0].text());
-      if (!d || d.app !== 'quran-flow') throw new Error('this is not a Quran Flow progress file');
+      if (!d || !['quran-tenets', 'quran-flow'].includes(d.app)) throw new Error('this is not a Quran Tenets progress file');
       // Merged with what is here, never replacing it: flows read and favourites are joined, quiz scores keep the best.
       M = M || await qmap();
       const seen = cleanSeen(store.obj('qf-seen'));

@@ -1,4 +1,4 @@
-/* Quran Flow - direction A "Illumination": Mushaf ivory, green ink, gilded timeline nodes.
+/* Quran Tenets - direction A "Illumination": Mushaf ivory, green ink, gilded timeline nodes.
    Layout: a single reading column (max ~74ch) with a gutter timeline. One menu: top bar, or a bottom bar on phones. */
 :root {
   --bg: #fbfaf6; --surface: #ffffff; --raise: #f3f1e9; --fg: #1e2a24; --muted: #5f6b63; --line: #e4e1d6;

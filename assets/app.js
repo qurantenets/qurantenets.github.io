@@ -1,4 +1,4 @@
-/* Quran Flow - one script for every page.
+/* Quran Tenets - one script for every page.
    Only what the reader looks at is loaded, each file once per visit: a flow's own verses when it is opened
    (data/v), a topic's flows when it is tapped (data/topic), a small map of all flows for verse lookups and
    favourites (data/map.json), a whole surah only when reading it through (data/text), and the full flow index
@@ -427,7 +427,7 @@
   const flowItem = (name, surah, desc, s, a, b) => ({
     kind: 'flow', id: `${s}:${a}`, title: name, meta: `${surah} ${rng(s, a, b)} · ${pl(b - a + 1, 'verse')}`, link: siteUrl(`surah/${s}/#f-${s}-${a}`), verses: b - a + 1,
     async text(withVerses) {
-      const out = [`${name} · ${surah} ${rng(s, a, b)} · Quran Flow`];
+      const out = [`${name} · ${surah} ${rng(s, a, b)} · Quran Tenets`];
       if (desc) out.push(desc);
       if (withVerses) out.push('', await versesBlock(s, a, b));
       return out.join('\n');
@@ -439,7 +439,7 @@
     const title = surah ? `${name} in ${surahName(surah)}` : name;
     const meta = `${pl(fl.length, 'flow')} · ${pl(v, 'verse')}` + (surah ? '' : ` · ${pl(new Set(rows.map(r => r[1])).size, 'surah')}`);
     return listItem('topic', surah ? `${slug}@${surah}` : slug, title, meta, siteUrl(surah ? `?topic=${encodeURIComponent(slug)}&in=${surah}` : `topic/${slug}/`),
-      [`${title} · Quran Flow`, meta], fl.map(r => ({ label: `${surahName(r[1])} ${rng(r[1], r[2], r[3])}`, desc: r[4], s: r[1], a: r[2], b: r[3] })));
+      [`${title} · Quran Tenets`, meta], fl.map(r => ({ label: `${surahName(r[1])} ${rng(r[1], r[2], r[3])}`, desc: r[4], s: r[1], a: r[2], b: r[3] })));
   };
   const sharePop = document.getElementById('share-pop');
   let shareItem = null, shareGen = 0, shareBusy = false;
@@ -451,7 +451,7 @@
     catch (e) {
       if (my !== shareGen) return;
       if (withVerses) { box.checked = false; toast('The words of the verses did not arrive. The message is ready without them.', 4000); drawShare(); return; }
-      body = `${it.title} · Quran Flow`;
+      body = `${it.title} · Quran Tenets`;
     }
     if (my !== shareGen) return; // asked again meanwhile: the later one writes the message
     const ta = $('#sh-text'); ta.value = `${body}\n\n${it.link}`; ta.scrollTop = 0;
@@ -487,7 +487,7 @@
     }
     const S = +sec.dataset.surah, mean = txt('.sh-mean', sec), name = txt('h1', sec).slice(0, mean ? -mean.length : undefined).trim();
     const meta = `${pl(+($('[data-goto]', sec) || {}).max || 0, 'verse')} · ${pl(fl.length, 'flow')}`;
-    openShare(listItem('surah', String(S), name, meta, siteUrl(`surah/${S}/`), [`${name}${mean ? ` (${mean})` : ''} · Surah ${S} · Quran Flow`, meta],
+    openShare(listItem('surah', String(S), name, meta, siteUrl(`surah/${S}/`), [`${name}${mean ? ` (${mean})` : ''} · Surah ${S} · Quran Tenets`, meta],
       fl.map(f => ({ label: `${f.name} · ${rng(S, f.a, f.b)}`, desc: f.desc, s: S, a: f.a, b: f.b }))));
   }
   if (sharePop) {
@@ -527,7 +527,7 @@
     const dlg = document.getElementById('tour-pop'); if (!dlg) return;
     const id = tourId(), box = $('#tour-video');
     box.className = 'tour-video' + (id === TOUR.mobile ? ' tall' : '');
-    const load = () => { box.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1" title="Quran Flow tour" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`; };
+    const load = () => { box.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1" title="Quran Tenets tour" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`; };
     if (play) load();
     else {
       box.innerHTML = `<button type="button" class="tour-play" aria-label="Play the tour"><img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt=""><span aria-hidden="true">▶</span></button>`;
