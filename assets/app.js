@@ -6,19 +6,46 @@
 (() => {
   'use strict';
   const BASE = (window.QF && window.QF.base) || '/';
+  /* The book this page belongs to. The Quran sends nothing (these defaults are its own words); a hadith book
+     (Sahih al-Bukhari, Sahih Muslim) sends its words and where each of its books starts in the hadith count, so a
+     hadith's number is worked out from its place (book s, entry v), as a verse's 2:255 is for the Quran. */
+  const SRC = Object.assign({ key: 'quran', title: 'Quran', short: 'Quran', unit: 'surah', units: 'surahs', item: 'verse', unitPath: 'surah', unitsPath: 'surahs' }, (window.QF && window.QF.src) || {});
+  const HAD = SRC.key !== 'quran';
+  const cap = w => w.charAt(0).toUpperCase() + w.slice(1);
+  const UNIT = SRC.unit, UNITS = SRC.units, ITEM = SRC.item, ITEMS = HAD ? SRC.item : `${SRC.item}s`, UP = SRC.unitPath; // "hadith" is its own plural
+  const QT = HAD ? SRC.title : 'the Quran'; // "in the Quran", "in Sahih al-Bukhari"
+  const BRAND = HAD ? `${SRC.title} · Quran Tenets` : 'Quran Tenets';
+  // A hadith's number: entries run 1..n with a few extra ones in between (402.2) whose places are in SRC.subs.
+  const hno = (s, v) => { const i = SRC.starts[s - 1] + v - 1; let k = 0; for (const x of SRC.subs) { if (x < i) k++; else break; } return SRC.subs.includes(i) ? `${i - k}.2` : String(i + 1 - k); };
+  const hpos = (n, sub) => { // a hadith number (and .2) -> [book, place in it], or null
+    let i = n - 1; for (const x of SRC.subs) { if (x <= i) i++; else break; }
+    if (sub) { i++; if (!SRC.subs.includes(i)) return null; }
+    const total = SRC.total || Infinity; if (!(i >= 0 && i < total)) return null;
+    let s = 1; while (s < SRC.starts.length && SRC.starts[s] <= i) s++;
+    return [s, i - SRC.starts[s - 1] + 1];
+  };
+  const REF = (s, v) => (HAD ? hno(s, v) : `${s}:${v}`);
+  const shown = r => { const [s, v] = String(r).split(':').map(Number); return HAD ? hno(s, v) : r; }; // a stored s:v as the reader knows it
+  const CITE = r => `${SRC.short} ${r}`; // "Quran 2:255", "Bukhari 349"
+  const unitNo = s => (HAD ? SRC.secs[s - 1] : s); // the number a reader knows a surah or book by
+  const extLink = (s, a, b) => (HAD ? (SRC.key === 'bukhari' ? `https://sunnah.com/bukhari:${hno(s, a).split('.')[0]}` : `https://sunnah.com/muslim/${SRC.secs[s - 1] || 'introduction'}`) : `https://quran.com/${s}/${a}` + (b !== a ? `-${b}` : ''));
+  /* All three books live on one address, so one browser store: a hadith book keeps its own favourites, progress
+     and choices (qf-bukhari-favs ...), and shares only the reader's display choices with the Quran. */
+  const SHARED = new Set(['qf-langs', 'qf-theme', 'qf-gloss', 'qf-tour', 'qf-visits', 'qf-counted', 'qf-cats', 'qf-pview']);
+  const K = k => (HAD && !SHARED.has(k) ? k.replace(/^qf-/, `qf-${SRC.key}-`) : k);
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const AR = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
   const store = {
-    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
+    get(k, d) { try { const v = localStorage.getItem(K(k)); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(K(k), JSON.stringify(v)); } catch (e) { /* private mode */ } },
     // A saved value of the wrong shape (edited by hand, or left by an older version) counts as nothing saved.
     arr(k) { const v = store.get(k, []); return Array.isArray(v) ? v : []; },
     obj(k) { const v = store.get(k, {}); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; },
   };
-  const rng = (s, a, b) => a === b ? `${s}:${a}` : `${s}:${a}–${b}`;
-  const pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`; // "1 verse", "2 verses"
+  const rng = (s, a, b) => (HAD ? (a === b ? hno(s, a) : `${hno(s, a)}–${hno(s, b)}`) : a === b ? `${s}:${a}` : `${s}:${a}–${b}`);
+  const pl = (n, w) => `${n} ${w}${n === 1 || w === 'hadith' ? '' : 's'}`; // "1 verse", "2 verses"; "2 hadith"
   const LOADING = msg => `<p class="v-load" role="status"><span class="qf-loader" aria-hidden="true"></span>${esc(msg)}</p>`;
 
   /* ---------- data ---------- */
@@ -275,13 +302,21 @@
   const pickedIn = new Map(); // verse -> the popup it was picked in (null: on the page itself)
   const MAIL = 'qurantenets@gmail.com';
   function verseTools(s, v) { // opens a verse block: its reference, a box to pick it, and a star to keep it
-    const r = `${s}:${v}`, f = favs.has(r);
-    return `<div class="v" data-ref="${r}"><div class="v-tools"><label class="v-pick"><input type="checkbox" data-pick${picked.has(r) ? ' checked' : ''}> Select ${r}</label>` +
-      `<button type="button" class="v-fav" data-fav aria-pressed="${f}" aria-label="${f ? 'Remove' : 'Save'} ${r} ${f ? 'from' : 'to'} favourites" title="Favourite">${f ? '★' : '☆'}</button></div>`;
+    const r = `${s}:${v}`, f = favs.has(r), R = REF(s, v);
+    return `<div class="v" data-ref="${r}"><div class="v-tools"><label class="v-pick"><input type="checkbox" data-pick${picked.has(r) ? ' checked' : ''}> Select ${R}</label>` +
+      `<button type="button" class="v-fav" data-fav aria-pressed="${f}" aria-label="${f ? 'Remove' : 'Save'} ${R} ${f ? 'from' : 'to'} favourites" title="Favourite">${f ? '★' : '☆'}</button></div>`;
   }
   // One verse in the chosen languages: t holds an array per language, i is this verse's place in those arrays.
   function verseHTML(s, v, t, i, tail = '') {
     let html = verseTools(s, v);
+    if (HAD) { // a hadith book: a language the source has no text in for this hadith is left out, and said so if it was the only one
+      const R = hno(s, v), has = l => t[l] && t[l][i];
+      if (has('ar')) html += `<div class="v-ar" lang="ar">${esc(t.ar[i])}<span class="v-mark" aria-label="hadith ${R}">${AR(R)}</span></div>`;
+      if (has('en')) html += `<div class="v-en" data-speak="en"><sup>${R}</sup><span class="vt">${esc(t.en[i])}</span>${speakBtn(R, 'English')}</div>`;
+      if (has('ta')) html += `<div class="v-ta" lang="ta" data-speak="ta"><sup>${R}</sup><span class="vt">${esc(t.ta[i])}</span>${speakBtn(R, 'Tamil')}</div>`;
+      if (!['ar', 'en', 'ta'].some(has)) html += `<p class="v-none"><sup>${R}</sup> ${['ar', 'en', 'ta'].filter(l => t[l]).length === 1 && t.ta ? 'No Tamil for this hadith in the source; switch on English or Arabic.' : 'No text for this entry in the source.'}</p>`;
+      return html + tail + '</div>';
+    }
     if (t.ar) html += `<div class="v-ar" lang="ar">${esc(t.ar[i])}<span class="v-mark" aria-label="verse ${v}">${AR(v)}</span></div>`;
     if (t.en) html += `<div class="v-en" data-speak="en"><sup>${s}:${v}</sup><span class="vt">${esc(t.en[i])}</span>${speakBtn(`${s}:${v}`, 'English')}</div>`;
     if (t.ta) html += `<div class="v-ta" lang="ta" data-speak="ta"><sup>${s}:${v}</sup><span class="vt">${esc(t.ta[i])}</span>${speakBtn(`${s}:${v}`, 'Tamil')}</div>`;
@@ -289,13 +324,13 @@
   }
   function correctionLink(s, a, b, nm) { // an email already holding the flow, its link and the questions to answer
     const r = rng(s, a, b);
-    const body = `Flow: ${nm} (${r})\nPage: ${location.origin}${BASE}surah/${s}/#f-${s}-${a}\n\nWhat should change (name, description, or where it starts or ends):\n\nWhy (a tafsir or other source helps):\n`;
+    const body = `${HAD ? `${SRC.title}\n` : ''}Flow: ${nm} (${r})\nPage: ${location.origin}${BASE}${UP}/${s}/#f-${s}-${a}\n\nWhat should change (name, description, or where it starts or ends):\n\n${HAD ? 'Why (the words of the hadith help):' : 'Why (a tafsir or other source helps):'}\n`;
     return `<a href="mailto:${MAIL}?subject=${encodeURIComponent(`Correction: ${r} ${nm}`)}&body=${encodeURIComponent(body)}">Suggest a correction</a>`;
   }
   const refKey = r => { const [s, v] = r.split(':').map(Number); return s * 1000 + v; };
   const favCount = () => { const n = document.getElementById('fav-n'); if (n) n.textContent = favs.size ? ` ${favs.size}` : '';
     const fp = document.getElementById('fav-pop'), pm = document.getElementById('fav-meta'); // the open list's own count follows
-    if (fp && fp.open && pm) pm.textContent = favs.size ? `${favs.size} verse${favs.size === 1 ? '' : 's'}` : '';
+    if (fp && fp.open && pm) pm.textContent = favs.size ? `${favs.size} ${ITEM}${HAD || favs.size === 1 ? '' : 's'}` : '';
   };
   favCount();
   // The message, then each picked verse in the languages chosen, then links to the surahs. Built from the text files,
@@ -308,9 +343,9 @@
     for (const r of [...picked].sort((x, y) => refKey(x) - refKey(y))) {
       const [s, v] = r.split(':').map(Number), got = await Promise.all(wantLangs().map(l => verseText(l, s, v)));
       if (!first.has(s)) first.set(s, v);
-      out.push(`Quran ${r}`, ...got.map(t => String(t || '').trim()).filter(Boolean), '');
+      out.push(CITE(REF(s, v)), ...got.map(t => String(t || '').trim()).filter(Boolean), '');
     }
-    return `${$('#sb-msg').value.trim()}\n\n${out.join('\n')}${[...first].map(([s, v]) => `${location.origin}${BASE}surah/${s}/#v${v}`).join('\n')}`;
+    return `${$('#sb-msg').value.trim()}\n\n${out.join('\n')}${[...first].map(([s, v]) => `${location.origin}${BASE}${UP}/${s}/#v${v}`).join('\n')}`;
   }
   // The bars sit at the bottom; while a popup is open they move into it, or the popup would cover them.
   function syncBars() {
@@ -329,7 +364,7 @@
   function drawShareBar() {
     const bar = document.getElementById('share-bar'); if (!bar) return;
     bar.hidden = !picked.size;
-    $('#sb-n').textContent = `${picked.size} verse${picked.size === 1 ? '' : 's'} selected`;
+    $('#sb-n').textContent = `${picked.size} ${ITEM}${HAD || picked.size === 1 ? '' : 's'} selected`;
     $('#sb-share').hidden = !navigator.share;
     syncBars();
   }
@@ -353,10 +388,10 @@
       if (favs.has(r)) favs.delete(r); else favs.add(r);
       store.set('qf-favs', [...favs]);
       const on = favs.has(r);
-      $$(`[data-ref="${r}"] [data-fav]`).forEach(b => { b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', `${on ? 'Remove' : 'Save'} ${r} ${on ? 'from' : 'to'} favourites`); });
-      favCount(); toast(on ? `${r} saved to favourites` : `${r} removed from favourites`); return;
+      $$(`[data-ref="${r}"] [data-fav]`).forEach(b => { b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', `${on ? 'Remove' : 'Save'} ${shown(r)} ${on ? 'from' : 'to'} favourites`); });
+      favCount(); toast(on ? `${shown(r)} saved to favourites` : `${shown(r)} removed from favourites`); return;
     }
-    if (e.target.closest('#sb-copy')) { try { await navigator.clipboard.writeText(await shareText()); toast(`Copied ${picked.size} verse${picked.size === 1 ? '' : 's'}`); } catch (err) { toast('Copying did not work in this browser'); } return; }
+    if (e.target.closest('#sb-copy')) { try { await navigator.clipboard.writeText(await shareText()); toast(`Copied ${picked.size} ${ITEM}${HAD || picked.size === 1 ? '' : 's'}`); } catch (err) { toast('Copying did not work in this browser'); } return; }
     if (e.target.closest('#sb-share')) { try { await navigator.share({ text: await shareText() }); } catch (err) { /* closed without sharing */ } return; }
     if (e.target.closest('#sb-clear')) { picked.clear(); pickedIn.clear(); $$('[data-pick]').forEach(x => { x.checked = false; }); drawShareBar(); return; }
     if (e.target.closest('#sp-pause')) { if (speech.paused) speech.resume(); else speech.pause(); return; }
@@ -406,7 +441,7 @@
   const SHARE_MAX = 60, SHARE_AUTO = 10, SHARE_LONG = 40; // verses one message can carry; how many are added unasked; above this many flows the list is names only
   async function versesBlock(s, a, b) {
     const got = await Promise.all(wantLangs().map(l => flowText(l, s, a, b))), out = [];
-    for (let v = a; v <= b; v++) out.push(`Quran ${s}:${v}`, ...got.map(t => String(t[v - a] || '').trim()).filter(Boolean), '');
+    for (let v = a; v <= b; v++) out.push(CITE(REF(s, v)), ...got.map(t => String(t[v - a] || '').trim()).filter(Boolean), '');
     return out.join('\n').trim();
   }
   // A list of flows under a heading. head: the lines above the list; flows: [{ label, desc, s, a, b }]
@@ -425,9 +460,9 @@
     }
   });
   const flowItem = (name, surah, desc, s, a, b) => ({
-    kind: 'flow', id: `${s}:${a}`, title: name, meta: `${surah} ${rng(s, a, b)} · ${pl(b - a + 1, 'verse')}`, link: siteUrl(`surah/${s}/#f-${s}-${a}`), verses: b - a + 1,
+    kind: 'flow', id: `${s}:${a}`, title: name, meta: `${surah} ${rng(s, a, b)} · ${pl(b - a + 1, ITEM)}`, link: siteUrl(`${UP}/${s}/#f-${s}-${a}`), verses: b - a + 1,
     async text(withVerses) {
-      const out = [`${name} · ${surah} ${rng(s, a, b)} · Quran Tenets`];
+      const out = [`${name} · ${surah} ${rng(s, a, b)} · ${BRAND}`];
       if (desc) out.push(desc);
       if (withVerses) out.push('', await versesBlock(s, a, b));
       return out.join('\n');
@@ -437,9 +472,9 @@
   const topicItem = (slug, name, rows, surah, surahName) => {
     const fl = surah ? rows.filter(r => r[1] === surah) : rows, v = fl.reduce((n, r) => n + r[3] - r[2] + 1, 0);
     const title = surah ? `${name} in ${surahName(surah)}` : name;
-    const meta = `${pl(fl.length, 'flow')} · ${pl(v, 'verse')}` + (surah ? '' : ` · ${pl(new Set(rows.map(r => r[1])).size, 'surah')}`);
+    const meta = `${pl(fl.length, 'flow')} · ${pl(v, ITEM)}` + (surah ? '' : ` · ${pl(new Set(rows.map(r => r[1])).size, UNIT)}`);
     return listItem('topic', surah ? `${slug}@${surah}` : slug, title, meta, siteUrl(surah ? `?topic=${encodeURIComponent(slug)}&in=${surah}` : `topic/${slug}/`),
-      [`${title} · Quran Tenets`, meta], fl.map(r => ({ label: `${surahName(r[1])} ${rng(r[1], r[2], r[3])}`, desc: r[4], s: r[1], a: r[2], b: r[3] })));
+      [`${title} · ${BRAND}`, meta], fl.map(r => ({ label: `${surahName(r[1])} ${rng(r[1], r[2], r[3])}`, desc: r[4], s: r[1], a: r[2], b: r[3] })));
   };
   const sharePop = document.getElementById('share-pop');
   let shareItem = null, shareGen = 0, shareBusy = false;
@@ -450,8 +485,8 @@
     try { body = await it.text(withVerses); }
     catch (e) {
       if (my !== shareGen) return;
-      if (withVerses) { box.checked = false; toast('The words of the verses did not arrive. The message is ready without them.', 4000); drawShare(); return; }
-      body = `${it.title} · Quran Tenets`;
+      if (withVerses) { box.checked = false; toast(`The words of the ${HAD ? 'hadith' : 'verses'} did not arrive. The message is ready without them.`, 4000); drawShare(); return; }
+      body = `${it.title} · ${BRAND}`;
     }
     if (my !== shareGen) return; // asked again meanwhile: the later one writes the message
     const ta = $('#sh-text'); ta.value = `${body}\n\n${it.link}`; ta.scrollTop = 0;
@@ -463,8 +498,8 @@
     $('#sh-title').textContent = item.title; $('#sh-meta').textContent = item.meta; $('#sh-link').value = item.link;
     const n = item.verses, fits = n >= 1 && n <= SHARE_MAX, note = $('#sh-note'), can = typeof navigator.share === 'function';
     $('#sh-verses-row').hidden = !fits; $('#sh-verses').checked = fits && n <= SHARE_AUTO;
-    $('#sh-verses-l').textContent = `Add the words of the ${n === 1 ? 'verse' : pl(n, 'verse')}`;
-    note.hidden = fits; note.textContent = fits ? '' : `${pl(n, 'verse')} are too many for one message, so it lists the flows. The link opens them all.`;
+    $('#sh-verses-l').textContent = `Add the words of the ${n === 1 ? ITEM : pl(n, ITEM)}`;
+    note.hidden = fits; note.textContent = fits ? '' : `${pl(n, ITEM)} are too many for one message, so it lists the flows. The link opens them all.`;
     $('#sh-share').hidden = !can; $('#sh-copy').classList.toggle('main', !can);
     $('#sh-text').value = '';
     if (!sharePop.open) { sharePop.showModal(); document.documentElement.classList.add('modal-open'); }
@@ -474,7 +509,7 @@
   async function shareFlow(li) { // one flow, from its open verses
     const s = +li.dataset.s, a = +li.dataset.a, b = +li.dataset.b, c = $('.c-surah', li), d = $('.fl-desc', li);
     let surah = c ? c.textContent.trim() : '';
-    if (!surah) { try { surah = (await qmap()).su[s - 1][0]; } catch (e) { surah = `Surah ${s}`; } }
+    if (!surah) { try { surah = (await qmap()).su[s - 1][0]; } catch (e) { surah = `${cap(UNIT)} ${unitNo(s)}`; } }
     openShare(flowItem($('.fl-open', li).textContent.trim(), surah, d ? d.textContent.trim() : '', s, a, b));
   }
   function sharePage() { // the topic or the surah this page is, from the rows already on it
@@ -482,12 +517,12 @@
     const txt = (sel, el) => (($(sel, el) || {}).textContent || '').trim();
     const fl = $$('.timeline .fl', sec).map(li => ({ s: +li.dataset.s, a: +li.dataset.a, b: +li.dataset.b, name: txt('.fl-open', li), desc: txt('.fl-desc', li), surah: txt('.c-surah', li) }));
     if (sec.dataset.slug) {
-      openShare(topicItem(sec.dataset.slug, txt('h1', sec), fl.map(f => [0, f.s, f.a, f.b, f.desc]), 0, s => (fl.find(f => f.s === s) || {}).surah || `Surah ${s}`));
+      openShare(topicItem(sec.dataset.slug, txt('h1', sec), fl.map(f => [0, f.s, f.a, f.b, f.desc]), 0, s => (fl.find(f => f.s === s) || {}).surah || `${cap(UNIT)} ${unitNo(s)}`));
       return;
     }
     const S = +sec.dataset.surah, mean = txt('.sh-mean', sec), name = txt('h1', sec).slice(0, mean ? -mean.length : undefined).trim();
-    const meta = `${pl(+($('[data-goto]', sec) || {}).max || 0, 'verse')} · ${pl(fl.length, 'flow')}`;
-    openShare(listItem('surah', String(S), name, meta, siteUrl(`surah/${S}/`), [`${name}${mean ? ` (${mean})` : ''} · Surah ${S} · Quran Tenets`, meta],
+    const gb = $('[data-goto]', sec) || {}, meta = `${pl(+((gb.dataset || {}).maxPos || gb.max) || 0, ITEM)} · ${pl(fl.length, 'flow')}`;
+    openShare(listItem('surah', String(S), name, meta, siteUrl(`${UP}/${S}/`), [HAD ? `${name} · ${SRC.title}, ${cap(UNIT)} ${unitNo(S)} · Quran Tenets` : `${name}${mean ? ` (${mean})` : ''} · Surah ${S} · Quran Tenets`, meta],
       fl.map(f => ({ label: `${f.name} · ${rng(S, f.a, f.b)}`, desc: f.desc, s: S, a: f.a, b: f.b }))));
   }
   if (sharePop) {
@@ -514,7 +549,7 @@
   let favGen = 0;
   // A saved verse that cannot be shown gets a line of its own, so it never hides the others.
   const favBad = (r, why) => `<p class="v-err fav-bad">${why === 'none'
-    ? `${esc(r)}: there is no such verse. <button type="button" class="ghost" data-fav-drop="${esc(r)}">Remove</button>`
+    ? `${esc(r)}: there is no such ${ITEM}. <button type="button" class="ghost" data-fav-drop="${esc(r)}">Remove</button>`
     : `${esc(r)} could not be loaded. Check your connection, then open Favourites again.`}</p>`;
   /* ---------- the tour video: the phone film on phones, the desktop film elsewhere ----------
      It opens by itself once, on a person's first visit (the day's popup waits for the next visit), and again from
@@ -552,8 +587,8 @@
   async function openFavs() { // favourite verses, in the languages chosen, loading only their surahs' text
     const dlg = document.getElementById('fav-pop'), body = $('#fav-body'); if (!dlg) return;
     const refs = [...favs].sort((x, y) => refKey(x) - refKey(y));
-    $('#fav-meta').textContent = refs.length ? `${refs.length} verse${refs.length === 1 ? '' : 's'}` : '';
-    body.innerHTML = refs.length ? LOADING('Loading your verses…') : '<p class="v-err">No favourites yet. Tap ☆ beside any verse to keep it here.</p>';
+    $('#fav-meta').textContent = refs.length ? `${refs.length} ${ITEM}${HAD || refs.length === 1 ? '' : 's'}` : '';
+    body.innerHTML = refs.length ? LOADING(`Loading your ${HAD ? 'hadith' : 'verses'}…`) : `<p class="v-err">No favourites yet. Tap ☆ beside any ${ITEM} to keep it here.</p>`;
     if (!dlg.open) { dlg.showModal(); document.documentElement.classList.add('modal-open'); }
     syncBars();
     if (!refs.length) return;
@@ -570,9 +605,9 @@
       }));
       if (my !== favGen) return; // the list was asked for again meanwhile
       body.innerHTML = `<div class="fav-list">${rows.map(({ r, bad, s, v, f, t }) => bad ? favBad(r, bad) : verseHTML(s, v, t, 0,
-        `<p class="v-links">${f ? `<a href="${BASE}surah/${s}/#f-${s}-${f.a}">${esc(f.name)} · ${rng(s, f.a, f.b)}</a>` : ''}<a href="${BASE}surah/${s}/">Open surah ${s}</a></p>`)).join('')}</div>`;
+        `<p class="v-links">${f ? `<a href="${BASE}${UP}/${s}/#f-${s}-${f.a}">${esc(f.name)} · ${rng(s, f.a, f.b)}</a>` : ''}<a href="${BASE}${UP}/${s}/">Open ${UNIT} ${unitNo(s)}</a></p>`)).join('')}</div>`;
       markHard(body);
-    } catch (e) { body.innerHTML = `<p class="v-err">The verses could not be loaded (${esc(e.message)}).</p>`; }
+    } catch (e) { body.innerHTML = `<p class="v-err">The ${HAD ? 'hadith' : 'verses'} could not be loaded (${esc(e.message)}).</p>`; }
   }
 
 
@@ -596,7 +631,8 @@
      verses shown. Readers can turn it off (and on again) from the bubble or the footer. */
   let glossOn = store.get('qf-gloss', true), glossP = null;
   const gloss = () => glossP || (glossP = getJSON('data/glossary.json').catch(() => { glossP = null; return null; }));
-  const WORD = /[A-Za-z](?:[A-Za-z'’-]*[A-Za-z])?['’]?/g;
+  // The hadith translations write some Arabic words with a backtick inside (rak`at, Sa`d): it is part of the word there.
+  const WORD = HAD ? /[A-Za-z](?:[A-Za-z'’`-]*[A-Za-z])?['’]?/g : /[A-Za-z](?:[A-Za-z'’-]*[A-Za-z])?['’]?/g;
   async function markHard(root) {
     if (!glossOn || !root) return;
     if (!$$('.v-en .vt:not([data-gl])', root).length) return;
@@ -663,22 +699,22 @@
     const box = $('.fl-verses', li);
     const s = +li.dataset.s, a = +li.dataset.a, b = +li.dataset.b;
     const want = ['ar', 'en', 'ta'].filter(l => langs[l]);
-    speech.drop(box); box.innerHTML = LOADING('Loading verses…');
+    speech.drop(box); box.innerHTML = LOADING(`Loading ${HAD ? 'hadith' : 'verses'}…`);
     try {
       const got = await Promise.all(want.map(l => flowText(l, s, a, b))); // this flow's verses only
       const t = Object.fromEntries(want.map((l, i) => [l, got[i]]));
       let html = '';
       for (let v = a; v <= b; v++) html += verseHTML(s, v, t, v - a);
-      const q = `https://quran.com/${s}/${a}` + (b !== a ? `-${b}` : '');
+      const q = extLink(s, a, b);
       const nm = $('.fl-open', li).textContent;
       const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<button type="button" class="v-readall" data-read-all data-read-label="Read this flow aloud">${ICON_SPEAK} Read this flow aloud</button>` : '';
-      html += `<div class="v-links">${readAll}<button type="button" class="v-share" data-share-flow>${ICON_SHARE} Share this flow</button><a href="${q}" rel="noopener">Listen and read on quran.com</a><a href="${BASE}surah/${s}/#f-${s}-${a}">Link to this flow</a>${li.dataset.slug ? `<a href="${BASE}topic/${li.dataset.slug}/">Every flow named ${esc(nm)}</a>` : ''}${correctionLink(s, a, b, nm)}</div>`;
+      html += `<div class="v-links">${readAll}<button type="button" class="v-share" data-share-flow>${ICON_SHARE} Share this flow</button><a href="${q}" rel="noopener">${HAD ? 'Read on sunnah.com' : 'Listen and read on quran.com'}</a><a href="${BASE}${UP}/${s}/#f-${s}-${a}">Link to this flow</a>${li.dataset.slug ? `<a href="${BASE}topic/${li.dataset.slug}/">Every flow named ${esc(nm)}</a>` : ''}${correctionLink(s, a, b, nm)}</div>`;
       speech.drop(box);
       box.innerHTML = html;
       markHard(box);
       markSeen(s, a);
     } catch (e) {
-      box.innerHTML = `<p class="v-err">The verses could not be loaded (${esc(e.message)}). Check your connection and open the flow again.</p>`;
+      box.innerHTML = `<p class="v-err">The ${HAD ? 'hadith' : 'verses'} could not be loaded (${esc(e.message)}). Check your connection and open the flow again.</p>`;
     }
   }
   function toggle(li, open) {
@@ -742,7 +778,7 @@
     const flowRows = () => $$('.timeline .fl', surahSec).map(li => ({ a: +li.dataset.a, b: +li.dataset.b, name: $('.fl-open', li).textContent, slug: li.dataset.slug }));
     async function drawRead() {
       const want = wantLangs(), keep = $$('.v', readBox).find(el => el.getBoundingClientRect().top >= 70); // stay on the same verse after a redraw
-      if (!keep) readBox.innerHTML = LOADING('Loading the surah…');
+      if (!keep) readBox.innerHTML = LOADING(`Loading the ${UNIT}…`);
       speech.drop(readBox);
       try {
         const got = await Promise.all(want.map(l => text(l, S))), t = Object.fromEntries(want.map((l, i) => [l, got[i]]));
@@ -750,16 +786,16 @@
         for (const f of flowRows()) { if (f.a > v) parts.push({ a: v, b: f.a - 1 }); parts.push(f); v = f.b + 1; }
         if (v <= n) parts.push({ a: v, b: n });
         const next = $('.pn a[rel="next"]', surahSec);
-        const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<div class="rd-acts"><button type="button" class="v-readall" data-read-all data-read-label="Read the surah aloud">${ICON_SPEAK} Read the surah aloud</button></div>` : '';
+        const readAll = (t.en || t.ta) && 'speechSynthesis' in window ? `<div class="rd-acts"><button type="button" class="v-readall" data-read-all data-read-label="Read the ${UNIT} aloud">${ICON_SPEAK} Read the ${UNIT} aloud</button></div>` : '';
         readBox.innerHTML = readAll + parts.map(f => `<section class="rd-flow" data-a="${f.a}"${f.name ? ' data-flow' : ''}><h3 class="rd-name">${f.name ? `<a href="${BASE}topic/${f.slug}/">${esc(f.name)}</a>` : 'Not grouped yet'}<span>${rng(S, f.a, f.b)}</span></h3>` +
           Array.from({ length: f.b - f.a + 1 }, (_, i) => verseHTML(S, f.a + i, t, f.a + i - 1)).join('') + '</section>').join('') +
-          (next ? `<p class="rd-next"><a href="${next.getAttribute('href')}#read">Continue reading: ${esc(next.textContent.replace(/\s*→\s*$/, ''))} →</a></p>` : '<p class="rd-next">The end of the Quran.</p>');
+          (next ? `<p class="rd-next"><a href="${next.getAttribute('href')}#read">Continue reading: ${esc(next.textContent.replace(/\s*→\s*$/, ''))} →</a></p>` : `<p class="rd-next">The end of ${QT}.</p>`);
         if (keep) { const el = $(`.v[data-ref="${keep.dataset.ref}"]`, readBox); if (el) el.scrollIntoView({ block: 'start' }); }
         markHard(readBox);
         if (readObs) readObs.disconnect();
         readObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { markSeen(S, +e.target.closest('.rd-flow').dataset.a); readObs.unobserve(e.target); } }));
         $$('.rd-flow[data-flow] > .v:last-child', readBox).forEach(v => readObs.observe(v));
-      } catch (e) { readBox.innerHTML = `<p class="v-err">The surah could not be loaded (${esc(e.message)}). Check your connection and try again.</p>`; readP = null; }
+      } catch (e) { readBox.innerHTML = `<p class="v-err">The ${UNIT} could not be loaded (${esc(e.message)}). Check your connection and try again.</p>`; readP = null; }
     }
     const setMode = (m, keep = true) => { // keep: remember it as the reader's own choice
       mode = m; if (keep) store.set('qf-sview', m);
@@ -773,8 +809,11 @@
     document.addEventListener('qf-langs', () => { if (readP) readP = drawRead(); });
     setMode(mode, false); // a view a link asked for (#read, or a flow) is shown, not remembered
     // Go to verse: in Flows the flow holding it opens; either way the verse comes into view and is marked.
+    const maxPos = +(gotoBox.dataset.maxPos || gotoBox.max);
+    // A hadith book's box takes the hadith's number; the page works with its place in the book.
+    const boxPos = () => { if (!HAD) return +gotoBox.value; const p = hpos(+gotoBox.value); return p && p[0] === S ? p[1] : NaN; };
     async function goTo(v, mark) { // mark: the reader asked for the verse here, so the address takes it
-      if (!(Number.isInteger(v) && v >= 1 && v <= +gotoBox.max)) { if (gotoBox.value !== '') toast(`This surah has ${gotoBox.max} verses: choose 1 to ${gotoBox.max}.`); return; }
+      if (!(Number.isInteger(v) && v >= 1 && v <= maxPos)) { if (gotoBox.value !== '') toast(HAD ? `This book has hadith ${gotoBox.min} to ${gotoBox.max}.` : `This surah has ${gotoBox.max} verses: choose 1 to ${gotoBox.max}.`); return; }
       if (mode === 'read') await readP;
       else { const li = $$('.timeline .fl', surahSec).find(x => +x.dataset.a <= v && v <= +x.dataset.b); if (!li) return; if (!li.classList.contains('open')) await toggle(li, true); }
       const el = $(`${mode === 'read' ? '#read' : '.timeline'} .v[data-ref="${S}:${v}"]`, surahSec); if (!el) return;
@@ -787,10 +826,10 @@
     // Enter always goes; leaving the box goes only to a number not gone to yet (otherwise clicking elsewhere after
     // Enter would jump back to the verse in the middle of that click).
     let lastGo = 0;
-    gotoBox.addEventListener('change', () => { const v = +gotoBox.value; if (v !== lastGo) { lastGo = v; goTo(v, true); } });
-    gotoBox.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); lastGo = +gotoBox.value; goTo(lastGo, true); } });
+    gotoBox.addEventListener('change', () => { const v = boxPos(); if (v !== lastGo) { lastGo = v; goTo(v, true); } });
+    gotoBox.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); lastGo = boxPos(); goTo(lastGo, true); } });
     // #v<n> is a verse's own address: the page goes to it in the view the reader keeps (Flows opens its flow).
-    const hashVerse = () => { const m = location.hash.match(/^#v(\d+)$/); if (!m) return false; gotoBox.value = m[1]; lastGo = +m[1]; goTo(lastGo); return true; };
+    const hashVerse = () => { const m = location.hash.match(/^#v(\d+)$/); if (!m) return false; gotoBox.value = HAD && +m[1] >= 1 && +m[1] <= maxPos ? hno(S, +m[1]).split('.')[0] : m[1]; lastGo = +m[1]; goTo(lastGo); return true; };
     afterTour(hashVerse);
     // A link to one of this surah's flows, or to Read through, followed while the page is already open, is answered
     // in the view on screen: Read through goes to the flow's first verse instead of leaving for the list.
@@ -834,14 +873,14 @@
     if (at === edge || !dlg.contains(at)) { e.preventDefault(); (e.shiftKey ? f[f.length - 1] : f[0]).focus(); }
   });
   const norm = s => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9: ]+/g, ' ').replace(/\s+/g, ' ').trim();
-  const VSIZE = { en: 'about 270 KB', ta: 'about 540 KB' };
+  const VSIZE = SRC.vsize || { en: 'about 270 KB', ta: 'about 540 KB' };
   function drawResults(out, busy, offer, verseOffer) {
     items = out.slice(0, 80);
     if (offer) items.push({ href: '#', act: 'deep', title: 'Search the flow descriptions too', meta: '', sub: `Passages whose description mentions “${offer}”` });
-    if (verseOffer) items.push({ href: '#', act: `verse-${verseOffer.lang}`, title: `Search the ${verseOffer.lang === 'ta' ? 'Tamil' : 'English'} text of every verse`, meta: '', sub: `Verses with “${verseOffer.q}” · loads ${VSIZE[verseOffer.lang]} once` });
+    if (verseOffer) items.push({ href: '#', act: `verse-${verseOffer.lang}`, title: `Search the ${verseOffer.lang === 'ta' ? 'Tamil' : 'English'} text of every ${ITEM}`, meta: '', sub: `${cap(HAD ? 'hadith' : 'verses')} with “${verseOffer.q}” · loads ${VSIZE[verseOffer.lang]} once` });
     sel = items.length ? 0 : -1;
     results.innerHTML = (items.length ? items.map((it, i) => it.head ? `<li class="r-head" role="presentation">${esc(it.title)}</li>` : `<li${it.act ? ' class="r-more"' : ''}><a href="${esc(it.href)}"${it.act ? ` data-act="${it.act}"` : ''} aria-selected="${i === sel}"><b>${esc(it.title)}</b><em>${esc(it.meta)}</em>${it.html ? `<small>${it.html}</small>` : it.sub ? `<small>${esc(it.sub)}</small>` : ''}</a></li>`).join('')
-      : busy ? '' : '<li class="r-none"><b>No match</b><small>Try a topic like Patience or Moses, a surah name, or a verse like 2:255.</small></li>') +
+      : busy ? '' : `<li class="r-none"><b>No match</b><small>${HAD ? 'Try a topic like Prayer or Fasting, a book name, or a hadith number like 349.' : 'Try a topic like Patience or Moses, a surah name, or a verse like 2:255.'}</small></li>`) +
       (busy ? `<li class="r-load">${LOADING(busy === true ? 'Searching the flow descriptions…' : busy)}</li>` : '');
     items = items.filter(it => !it.head); // keyboard moves over links only
   }
@@ -865,23 +904,24 @@
     try { m = await qmap(); } catch (e) { results.innerHTML = '<li class="r-none"><b>Search could not load</b><small>Check your connection, then type again.</small></li>'; items = []; sel = -1; return; }
     if (my !== searchGen) return;
     const out = [];
-    const ref = raw.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
+    const ref = HAD ? raw.match(/^(?:no\.?\s*)?(\d{1,4})(\.2)?$/i) : raw.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
     if (ref) {
-      const s = +ref[1], v = +ref[2], su = m.su[s - 1];
+      const at = HAD ? hpos(+ref[1], !!ref[2]) : [+ref[1], +ref[2]];
+      const s = at ? at[0] : 0, v = at ? at[1] : 0, su = m.su[s - 1];
       if (su && v >= 1 && v <= su[3]) {
         const f = await flowOf(s, v);
-        out.push(f ? { href: `${BASE}surah/${s}/#v${v}`, title: f.name, meta: rng(s, f.a, f.b), sub: `Verse ${s}:${v} is in this flow of ${su[0]}` }
-                   : { href: `https://quran.com/${s}/${v}`, title: `${su[0]} ${s}:${v}`, meta: 'not grouped yet', sub: 'Read this verse on quran.com' });
+        out.push(f ? { href: `${BASE}${UP}/${s}/#v${v}`, title: f.name, meta: rng(s, f.a, f.b), sub: `${cap(ITEM)} ${REF(s, v)} is in this flow of ${su[0]}` }
+                   : { href: extLink(s, v, v), title: `${su[0]} ${REF(s, v)}`, meta: 'not grouped yet', sub: HAD ? 'Read this hadith on sunnah.com' : 'Read this verse on quran.com' });
       }
     }
     const ta = isTa(raw), n = ref ? '' : norm(raw), words = n ? n.split(' ') : [], ar = !ref && hasAr(raw) ? arNorm(raw) : '';
     const hit = str => { const h = norm(str); return words.length > 0 && words.every(w => h.includes(w)); };
     if (n || ta || ar) {
-      if (n || ar) m.su.forEach((s, i) => { if ((n && hit(`${i + 1} ${s[0]} ${s[1]}`)) || (ar && arNorm(s[2]).includes(ar))) out.push({ href: `${BASE}surah/${i + 1}/`, title: `${i + 1}. ${s[0]}`, meta: `${s[3]} verses`, sub: s[1] }); });
+      if (n || ar) m.su.forEach((s, i) => { if ((n && hit(`${unitNo(i + 1)} ${s[0]} ${s[1]}`)) || (ar && s[2] && arNorm(s[2]).includes(ar))) out.push({ href: `${BASE}${UP}/${i + 1}/`, title: `${unitNo(i + 1)}. ${s[0]}`, meta: `${s[3]} ${ITEMS}`, sub: s[1] }); });
       // Topics by name first, then by a related word: "wedding" finds Marriage, "riba" Interest, தொழுகை Prayer.
       const named = n ? m.t.filter(t => hit(t[1])) : [], rel = m.t.filter(t => !named.includes(t)).map(t => [t, relatedWord(t[4], raw, words)]).filter(x => x[1]);
-      named.sort((a, b) => b[3] - a[3]).forEach(t => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${pl(t[3], 'verse')}`, sub: `${pl(t[2], 'flow')}` }));
-      rel.sort((a, b) => b[0][3] - a[0][3]).forEach(([t, w]) => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${pl(t[3], 'verse')}`, sub: `${pl(t[2], 'flow')} · related to “${w}”` }));
+      named.sort((a, b) => b[3] - a[3]).forEach(t => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${pl(t[3], ITEM)}`, sub: `${pl(t[2], 'flow')}` }));
+      rel.sort((a, b) => b[0][3] - a[0][3]).forEach(([t, w]) => out.push({ href: `${BASE}topic/${t[0]}/`, title: t[1], meta: `topic · ${pl(t[3], ITEM)}`, sub: `${pl(t[2], 'flow')} · related to “${w}”` }));
     }
     const vOffer = !ref && (ta || n.length >= 3) && !verseLang ? { lang: ta ? 'ta' : 'en', q: raw } : null;
     if (verseLang) { await verseSearch(verseLang, raw, out, my); return; }
@@ -890,17 +930,17 @@
     if (!deep) return;
     let data; try { data = await index(); } catch (e) { if (my === searchGen) drawResults(out, false, '', vOffer); return; }
     if (my !== searchGen) return;
-    data.flows.filter(f => !hit(f[4]) && f[6] && hit(f[6])).slice(0, 30).forEach(f => out.push({ href: `${BASE}surah/${f[1]}/#f-${f[1]}-${f[2]}`, title: f[4], meta: rng(f[1], f[2], f[3]), sub: f[6] }));
+    data.flows.filter(f => !hit(f[4]) && f[6] && hit(f[6])).slice(0, 30).forEach(f => out.push({ href: `${BASE}${UP}/${f[1]}/#f-${f[1]}-${f[2]}`, title: f[4], meta: rng(f[1], f[2], f[3]), sub: f[6] }));
     drawResults(out, false, '', vOffer);
   }
   /* The words of the verses themselves, in English or Tamil: every verse in one file per language, fetched only
      when asked for. All the typed words must be in a verse; each result names its flow and shows the words marked. */
   async function verseSearch(lang, raw, out, my) {
-    drawResults(out, `Loading the ${lang === 'ta' ? 'Tamil' : 'English'} verses (${VSIZE[lang]}, once)…`);
+    drawResults(out, `Loading the ${lang === 'ta' ? 'Tamil' : 'English'} ${HAD ? 'hadith' : 'verses'} (${VSIZE[lang]}, once)…`);
     let all, m;
     try { [all, m] = await Promise.all([getJSON(`data/search/${lang}.json`), qmap()]); } catch (e) { // say so, where the answer would have been: this is not "no verse has it"
       if (my === searchGen) {
-        const row = '<li class="r-none"><b>The verse text could not be loaded</b><small>Check your connection, then try again.</small></li>';
+        const row = `<li class="r-none"><b>The ${ITEM} text could not be loaded</b><small>Check your connection, then try again.</small></li>`;
         drawResults(out, false); if (out.length) results.insertAdjacentHTML('beforeend', row); else results.innerHTML = row;
       }
       return;
@@ -917,10 +957,10 @@
       const f = await flowOf(s, v), txt = lang === 'ta' ? NFC(all[k]) : all[k];
       const first = txt.search(re), from = Math.max(0, first - 50), cut = txt.slice(from, from + 170);
       const html = (from ? '…' : '') + esc(cut).replace(new RegExp(re.source, re.flags), x => `<mark>${x}</mark>`) + (from + 170 < txt.length ? '…' : '');
-      rows.push({ href: `${BASE}surah/${s}/#v${v}`, title: `${s}:${v}${f ? ` · ${f.name}` : ''}`, meta: m.su[s - 1][0], html });
+      rows.push({ href: `${BASE}${UP}/${s}/#v${v}`, title: `${REF(s, v)}${f ? ` · ${f.name}` : ''}`, meta: m.su[s - 1][0], html });
     }
     if (my !== searchGen) return;
-    const head = { head: true, title: hits.length ? `${hits.length.toLocaleString()} verse${hits.length === 1 ? '' : 's'} with “${raw}” in ${lang === 'ta' ? 'Tamil' : 'English'}${hits.length > 60 ? ' · the first 60 (add a word to narrow)' : ''}` : `No verse has all of “${raw}” in ${lang === 'ta' ? 'Tamil' : 'English'}` };
+    const head = { head: true, title: hits.length ? `${hits.length.toLocaleString()} ${ITEM}${HAD || hits.length === 1 ? '' : 's'} with “${raw}” in ${lang === 'ta' ? 'Tamil' : 'English'}${hits.length > 60 ? ' · the first 60 (add a word to narrow)' : ''}` : `No ${ITEM} has all of “${raw}” in ${lang === 'ta' ? 'Tamil' : 'English'}` };
     drawResults([...out, head, ...rows], false);
     track('search_verses', { lang, term: raw });
   }
@@ -968,8 +1008,113 @@
     }
   }
 
+  /* ---------- what the other books say on a topic ----------
+     The Quran, Sahih al-Bukhari and Sahih Muslim share their topic names, so a topic open in one book shows the
+     passages the other two have on it: always in the same order (Quran, Bukhari, Muslim), each with its count, and
+     each passage opens in place, its words coming from that book's own small files in the languages switched on.
+     Shown only for a topic that at least two of the books have. */
+  const SITES = (window.QF && window.QF.sites) || [];
+  const siteOf = k => SITES.find(x => x.key === k) || { key: k, title: k, short: k, base: `/${k}/`, item: 'passage', unitPath: k };
+  const bookName = st => (st.key === 'quran' ? 'the Quran' : st.title);
+  const refOf = (st, s, v) => { if (st.key === 'quran') return `${s}:${v}`; const i = st.starts[s - 1] + v - 1; let k = 0; for (const x of st.subs) { if (x < i) k++; else break; } return st.subs.includes(i) ? `${i - k}.2` : String(i + 1 - k); };
+  const rngOf = (st, s, a, b) => (a === b ? refOf(st, s, a) : `${refOf(st, s, a)}–${refOf(st, s, b)}`);
+  const common = () => getJSON('data/common.json');
+  const OT_FIRST = 3; // another book's passages shown before "Show all"
+  // Files of the other books (their own addresses), each fetched once per visit, like getJSON.
+  const getURL = url => {
+    if (!files.has(url)) { const p = fetch(url).then(res => { if (!res.ok) throw new Error(res.status); return res.json(); }); files.set(url, p); p.catch(() => files.delete(url)); }
+    return files.get(url);
+  };
+  /* Side by side (Rehan, 2026-11-17: "in the desktop view, I just want to see everything side by side"): on a wide
+     screen a topic shows every passage of all three books at once, one column per book in the books' order; "List"
+     goes back to the book's own list with the others below it. Phones always have the list and the jump strip. The
+     choice is remembered (qf-pview, shared by the three books). */
+  const WIDE = matchMedia('(min-width: 1100px)');
+  let pview = store.get('qf-pview', 'side') === 'list' ? 'list' : 'side';
+  const sideNow = () => WIDE.matches && pview === 'side';
+  async function bookCount(slug) { // how many of the three books have this topic (0 when that is not known)
+    try { const per = (await common()).t[slug]; return per ? per.filter(Boolean).length : 1; } catch (e) { return 0; }
+  }
+  async function drawOthers(host, slug, strip, side = false) {
+    if (!host) return false;
+    const my = host._gen = (host._gen || 0) + 1;
+    host.innerHTML = ''; if (strip) { strip.hidden = true; strip.innerHTML = ''; }
+    let c; try { c = await common(); } catch (e) { return false; }
+    if (my !== host._gen) return false;
+    const per = c.t[slug]; if (!per) return false;
+    const at = c.s.map((k, i) => ({ k, n: per[i] }));
+    if (at.filter(x => x.n).length < 2) return false;
+    const name = c.n[slug] || slug, pre = side ? 'sd' : 'ot', first = side ? Infinity : OT_FIRST;
+    if (strip) {
+      strip.innerHTML = at.map(({ k, n }) => `<a href="#${k === SRC.key ? 'tp-list' : `ot-${k}`}" data-jump="${k}" data-book="${k}"${k === SRC.key ? ' aria-current="true"' : ''}><i class="bk-dot"></i>${esc(siteOf(k).short)}<small>${n ? n[0] : 0}</small></a>`).join('');
+      strip.hidden = false;
+    }
+    const blocks = side ? at : at.filter(x => x.k !== SRC.key);
+    host.innerHTML = (side ? '' : `<h3 class="others-h">What the other books say on ${esc(name)}</h3>`) + `<div class="${side ? 'side-cols' : 'ot-books'}">` + blocks.map(({ k, n }) => {
+      const st = siteOf(k);
+      return `<section class="ot-book${k === SRC.key ? ' is-here' : ''}" id="${pre}-${k}" data-book="${k}"><h4><i class="bk-dot"></i>${esc(k === 'quran' ? 'The Quran' : st.title)}<small>${n ? `${pl(n[0], 'flow')} · ${pl(n[1], st.item)}` : 'none yet'}</small></h4>` +
+        (n ? `<ol class="ot-list"><li>${LOADING('Loading…')}</li></ol><p class="ot-more"><a href="${st.base}topic/${slug}/" data-nav>${esc(name)} in ${esc(bookName(st))} →</a></p>`
+           : `<p class="ot-none">No passages on this topic in ${esc(bookName(st))} yet.</p>`) + '</section>';
+    }).join('') + '</div>';
+    await Promise.all(blocks.filter(x => x.n).map(async ({ k }) => {
+      const st = siteOf(k), box = $(`#${pre}-${k} .ot-list`, host); if (!box) return;
+      let rows;
+      try { rows = await getURL(`${st.base}data/topic/${slug}.json`); }
+      catch (e) { if (my === host._gen) box.innerHTML = `<li class="v-err">These passages could not be loaded (${esc(e.message)}).</li>`; return; }
+      if (my !== host._gen) return;
+      const units = c.u[k] || [];
+      box.innerHTML = rows.map((r, i) => { const u = units[r[1] - 1] || [String(r[1]), ''];
+        return `<li class="ot"${i >= first ? ' hidden' : ''} data-book="${k}" data-s="${r[1]}" data-a="${r[2]}" data-b="${r[3]}"><button type="button" class="ot-open" aria-expanded="false"><span class="ot-ref">${esc(st.short)} ${rngOf(st, r[1], r[2], r[3])}</span><span class="ot-unit">${esc(u[1] ? `${u[1]} · ${u[0]}` : u[0])}</span></button>${r[4] ? `<p class="ot-desc">${esc(r[4])}</p>` : ''}<div class="ot-text" hidden></div></li>`; }).join('') +
+        (rows.length > first ? `<li class="ot-all"><button type="button" class="ghost" data-ot-all>Show all ${rows.length}</button></li>` : '');
+    }));
+    return true;
+  }
+  async function otText(li) {
+    const st = siteOf(li.dataset.book), s = +li.dataset.s, a = +li.dataset.a, b = +li.dataset.b, box = $('.ot-text', li), want = wantLangs();
+    box.innerHTML = LOADING('Loading…');
+    try {
+      const got = await Promise.all(want.map(l => getURL(`${st.base}data/v/${l}/${s}/${a}.json`)));
+      let html = '';
+      for (let v = a; v <= b; v++) {
+        const ref = refOf(st, s, v), i = v - a;
+        want.forEach((l, j) => { const t = got[j][i]; if (!t) return;
+          html += l === 'ar' ? `<p class="ot-ar" lang="ar" dir="rtl">${esc(t)} <span class="v-mark">${AR(ref)}</span></p>` : `<p class="ot-${l}"${l === 'ta' ? ' lang="ta"' : ''}><sup>${esc(ref)}</sup> ${esc(t)}</p>`; });
+      }
+      box.innerHTML = (html || '<p class="v-none">No text for these in the languages switched on.</p>') + `<p class="v-links"><a href="${st.base}${st.unitPath}/${s}/#f-${s}-${a}" data-nav>Open in ${esc(bookName(st))}</a></p>`;
+    } catch (e) { box.innerHTML = `<p class="v-err">The words could not be loaded (${esc(e.message)}). Check your connection and open it again.</p>`; }
+  }
+  document.addEventListener('click', e => {
+    const jump = e.target.closest('[data-jump]');
+    if (jump) { e.preventDefault(); const id = jump.getAttribute('href').slice(1), el = document.getElementById(id); if (el) el.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); return; }
+    const all = e.target.closest('[data-ot-all]');
+    if (all) { const ol = all.closest('.ot-list'); $$('.ot[hidden]', ol).forEach(li => { li.hidden = false; }); all.closest('li').remove(); return; }
+    const b = e.target.closest('.ot-open'); if (!b) return;
+    const li = b.closest('.ot'), box = $('.ot-text', li), open = box.hidden;
+    box.hidden = !open; b.setAttribute('aria-expanded', String(open)); li.classList.toggle('open', open);
+    if (open) otText(li);
+  });
+  document.addEventListener('qf-langs', () => $$('.ot.open').forEach(li => otText(li)));
+  { // a topic page: the book's own list with the other books under it, or (wide screens) all three side by side
+    const slot = $('[data-others]'), sideBox = $('[data-side]'), seg = $('[data-pview-seg]');
+    if (slot && document.body.dataset.kind === 'topic') {
+      const slug = slot.dataset.others;
+      const apply = () => {
+        const side = !!sideBox && sideNow();
+        document.body.classList.toggle('side-mode', side);
+        if (sideBox) sideBox.hidden = !side;
+        if (seg) $$('[data-pview]', seg).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.pview === pview)));
+        if (side && !sideBox.dataset.drawn) { sideBox.dataset.drawn = '1'; drawOthers(sideBox, slug, null, true); }
+        if (!side && !slot.dataset.drawn) { slot.dataset.drawn = '1'; drawOthers(slot, slug, null); }
+      };
+      if (seg) seg.addEventListener('click', e => { const b = e.target.closest('[data-pview]'); if (!b) return; pview = b.dataset.pview; store.set('qf-pview', pview); apply(); });
+      WIDE.addEventListener('change', apply);
+      apply();
+    }
+  }
+
   // What the Quiz page's own script (assets/quiz.js, loaded there only) uses from this one.
-  window.QF.api = { getJSON, qmap, flowText, esc, store, rng, LOADING, markHard, wantLangs, toast, track, favs };
+  window.QF.api = { getJSON, qmap, flowText, esc, store, rng, LOADING, markHard, wantLangs, toast, track, favs,
+    book: { HAD, SRC, UNIT, UNITS, ITEM, UP, REF, unitNo } };
 
   /* ---------- home ---------- */
   if (document.body.dataset.kind === 'home') home();
@@ -991,25 +1136,28 @@
     if (lk) {
       const ls = $('#lk-s'), lv = $('#lk-v'), lo = $('#lk-out');
       let lkT = 0, lkGen = 0;
-      const setMax = () => { const n = +ls.selectedOptions[0].dataset.n; lv.max = n; lv.placeholder = `1–${n}`; };
+      const setMax = () => { if (!ls) return; const n = +ls.selectedOptions[0].dataset.n; lv.max = n; lv.placeholder = `1–${n}`; };
       async function find() {
-        const s = +ls.value, v = +lv.value, n = +lv.max, my = ++lkGen;
+        // A hadith book asks for the hadith's number alone; the book and its place in it follow from it.
+        const at = HAD ? hpos(+lv.value) : null;
+        const s = HAD ? (at ? at[0] : 0) : +ls.value, v = HAD ? (at ? at[1] : 0) : +lv.value, n = +lv.max, my = ++lkGen;
         if (!lv.value) { lo.innerHTML = ''; return; }
-        if (!(Number.isInteger(v) && v >= 1 && v <= n)) { lo.innerHTML = `<p class="v-err">${esc(ls.selectedOptions[0].textContent)} has ${n} verses: choose 1 to ${n}.</p>`; return; }
+        if (HAD && !(Number.isInteger(+lv.value) && at)) { lo.innerHTML = `<p class="v-err">Choose a hadith number from 1 to ${n}.</p>`; return; }
+        if (!HAD && !(Number.isInteger(v) && v >= 1 && v <= n)) { lo.innerHTML = `<p class="v-err">${esc(ls.selectedOptions[0].textContent)} has ${n} verses: choose 1 to ${n}.</p>`; return; }
         lo.innerHTML = LOADING('Finding the flow…');
         try {
           const want = wantLangs(), [f, ...got] = await Promise.all([flowOf(s, v), ...want.map(l => verseText(l, s, v))]);
           if (my !== lkGen) return;
           const t = Object.fromEntries(want.map((l, i) => [l, [got[i]]]));
-          lo.innerHTML = (f ? `<p class="lk-res">Verse <b>${s}:${v}</b> is in the flow <a href="${BASE}topic/${f.slug}/">${esc(f.name)}</a> · ${rng(s, f.a, f.b)} · flow ${f.no} of the Quran</p>`
-                            : `<p class="lk-res">Verse <b>${s}:${v}</b> is not in a flow yet.</p>`) +
+          lo.innerHTML = (f ? `<p class="lk-res">${cap(ITEM)} <b>${REF(s, v)}</b> is in the flow <a href="${BASE}topic/${f.slug}/">${esc(f.name)}</a> · ${rng(s, f.a, f.b)} · flow ${f.no} of ${QT}</p>`
+                            : `<p class="lk-res">${cap(ITEM)} <b>${REF(s, v)}</b> is not in a flow yet.</p>`) +
             verseHTML(s, v, t, 0) +
-            `<p class="v-links">${f ? `<a href="${BASE}surah/${s}/#f-${s}-${f.a}">Open this flow in its surah</a>` : ''}<a href="${BASE}surah/${s}/#read">Read the surah through</a></p>`;
+            `<p class="v-links">${f ? `<a href="${BASE}${UP}/${s}/#f-${s}-${f.a}">Open this flow in its ${UNIT}</a>` : ''}<a href="${BASE}${UP}/${s}/#read">Read the ${UNIT} through</a></p>`;
           markHard(lo);
         } catch (e) { if (my === lkGen) lo.innerHTML = `<p class="v-err">That could not be looked up (${esc(e.message)}). Check your connection.</p>`; }
       }
       setMax();
-      ls.addEventListener('change', () => { setMax(); if (lv.value) find(); });
+      if (ls) ls.addEventListener('change', () => { setMax(); if (lv.value) find(); });
       lv.addEventListener('input', () => { clearTimeout(lkT); lkT = setTimeout(find, 350); });
       lk.addEventListener('submit', e => { e.preventDefault(); clearTimeout(lkT); find(); });
     }
@@ -1035,15 +1183,15 @@
 
     // A topic heading, used when "Group by topic" is on: the topic's name (a link to its page) and its totals.
     const groupHTML = g => (g.surah
-      ? `<li class="fl-group" data-surah="${g.surah}"><a href="${BASE}surah/${g.surah}/"><span class="fl-group-no">${g.surah}</span>${esc(g.name)}</a>`
+      ? `<li class="fl-group" data-surah="${g.surah}"><a href="${BASE}${UP}/${g.surah}/"><span class="fl-group-no">${unitNo(g.surah)}</span>${esc(g.name)}</a>`
       : g.cat !== undefined ? `<li class="fl-group" data-cat="${g.cat}"><span class="cat-name"><i class="cat-dot"></i>${esc(g.name)}</span>`
       : `<li class="fl-group" data-slug="${g.slug}"><a href="${BASE}topic/${g.slug}/"><i class="cat-dot" data-cat="${catOf(g.slug)}"></i>${esc(g.name)}</a>`) +
-      `<span class="fl-group-n">${g.n} flow${g.n === 1 ? '' : 's'} · ${g.v} verse${g.v === 1 ? '' : 's'}</span></li>`;
+      `<span class="fl-group-n">${g.n} flow${g.n === 1 ? '' : 's'} · ${g.v} ${ITEM}${HAD || g.v === 1 ? '' : 's'}</span></li>`;
     const itemHTML = x => (Array.isArray(x) ? rowHTML(x) : groupHTML(x));
     function rowHTML(f) {
       return `<li class="fl" id="f-${f[1]}-${f[2]}" data-s="${f[1]}" data-a="${f[2]}" data-b="${f[3]}" data-slug="${f[5]}" data-cat="${catOf(f[5])}"><span class="c-no">${f[0]}</span>` +
         `<div class="fl-main"><button class="fl-open" type="button" aria-expanded="false"><span class="fl-name">${esc(f[4])}</span></button>${f[6] ? `<p class="fl-desc">${esc(f[6])}</p>` : ''}</div>` +
-        `<span class="c-rg">${rng(f[1], f[2], f[3])}</span><a class="c-surah" href="${BASE}surah/${f[1]}/">${esc(surahName(f[1]))}</a><span class="c-n">${f[3] - f[2] + 1}</span><div class="fl-verses" hidden></div></li>`;
+        `<span class="c-rg">${rng(f[1], f[2], f[3])}</span><a class="c-surah" href="${BASE}${UP}/${f[1]}/">${esc(surahName(f[1]))}</a><span class="c-n">${f[3] - f[2] + 1}</span><div class="fl-verses" hidden></div></li>`;
     }
 
     /* Rows arrive in two ways. The everyday path (no search, no topic, reading order) pulls one 40-flow
@@ -1106,12 +1254,12 @@
       table.classList.toggle('no-surah', gb === 'surah'); // nor the surah's under a surah heading
       fclear.hidden = !(q || s || t.length || cats.size || sort.key !== 'no' || sort.dir !== 1);
       speech.drop(list); list.innerHTML = skeleton(8); shown = 0; kb = -1;
-      const ref = q.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
+      const ref = HAD ? (m => (m && hpos(+m[1], !!m[2])) ? ['', ...hpos(+m[1], !!m[2])] : null)(q.match(/^(?:no\.?\s*)?(\d{1,4})(\.2)?$/i)) : q.match(/^(\d{1,3})\s*[:.]\s*(\d{1,3})$/);
       if (!q && !t.length && !cats.size && sort.key === 'no' && sort.dir === 1 && !gb) {
         const sp = s ? meta.span[String(s)] : [0, meta.flows - 1];
         source = sp ? streamSource(sp[0], sp[1]) : arraySource([]);
         const n = s ? (sp ? sp[1] - sp[0] + 1 : 0) : meta.flows;
-        total.textContent = s ? `${n} flow${n === 1 ? '' : 's'} in ${surahName(s)}` : `${meta.flows.toLocaleString()} flows · ${meta.verses.toLocaleString()} verses`;
+        total.textContent = s ? `${n} flow${n === 1 ? '' : 's'} in ${surahName(s)}` : `${meta.flows.toLocaleString()} flows · ${meta.verses.toLocaleString()} ${ITEMS}`;
       } else {
         let data;
         try { data = await loadAll(); } catch (e) { // the one file that search, filters and sorting read did not arrive
@@ -1138,11 +1286,11 @@
             const g = groups.get(k); g.n++; g.v += f[3] - f[2] + 1; g.flows.push(f);
           }
           source = arraySource([...groups.values()].flatMap(g => [g, ...g.flows]));
-          const unit = byTopic ? ['topic', 'topics'] : byCat ? ['category', 'categories'] : ['surah', 'surahs'];
-          total.textContent = `${groups.size} ${unit[groups.size === 1 ? 0 : 1]} · ${pl(r.length, 'flow')} · ${pl(v, 'verse')}`;
+          const unit = byTopic ? ['topic', 'topics'] : byCat ? ['category', 'categories'] : [UNIT, UNITS];
+          total.textContent = `${groups.size} ${unit[groups.size === 1 ? 0 : 1]} · ${pl(r.length, 'flow')} · ${pl(v, ITEM)}`;
         } else {
           source = arraySource(r);
-          total.textContent = `${pl(r.length, 'flow')} · ${pl(v, 'verse')}`;
+          total.textContent = `${pl(r.length, 'flow')} · ${pl(v, ITEM)}`;
         }
       }
       await more(my);
@@ -1150,10 +1298,10 @@
 
     metaP.then(m => {
       meta = m;
-      fs.innerHTML = '<option value="">All surahs</option>' + m.surahs.map(s => {
+      fs.innerHTML = `<option value="">All ${UNITS}</option>` + m.surahs.map(s => {
         // Distinct topics and flows, both named: a bare "(105)" read as topics when it counted flows.
         const sp = m.span[String(s[0])], n = sp ? sp[1] - sp[0] + 1 : 0, k = (m.stopics || {})[String(s[0])] || 0;
-        return `<option value="${s[0]}"${n ? '' : ' disabled'}>${s[0]}. ${esc(s[1])} · ${k} topic${k === 1 ? '' : 's'} · ${n} flow${n === 1 ? '' : 's'}</option>`;
+        return `<option value="${s[0]}"${n ? '' : ' disabled'}>${unitNo(s[0])}. ${esc(s[1])} · ${k} topic${k === 1 ? '' : 's'} · ${n} flow${n === 1 ? '' : 's'}</option>`;
       }).join('');
       const st = store.obj('qf-filter');
       m.topics.forEach(t => topicBy.set(t[0], t));
@@ -1201,12 +1349,21 @@
        Flows: pick one or more, none picked shows all. */
     let cats = new Set();
     const catOf = slug => { const t = topicBy.get(slug), c = t && meta.cats ? meta.cats[t[5]] : null; return c ? c[0] : ''; };
-    const inCats = slug => !cats.size || cats.has(catOf(slug));
+    // "In all three books" (Topics page): only the topics the Quran, Bukhari and Muslim all have. Its list is fetched
+    // the first time it is pressed.
+    let onlyCommon = false, commonSet = null;
+    const inCats = slug => (!cats.size || cats.has(catOf(slug))) && (!onlyCommon || (!!commonSet && commonSet.has(slug)));
+    const tlc = $('#tl-common');
+    if (tlc) tlc.addEventListener('click', async () => {
+      if (!commonSet) { try { const c = await common(); commonSet = new Set(Object.entries(c.t).filter(([, per]) => per.every(Boolean)).map(([k]) => k)); } catch (e) { toast('That list did not arrive. Check your connection and try again.', 4000); return; } }
+      onlyCommon = !onlyCommon; tlc.setAttribute('aria-pressed', String(onlyCommon));
+      if (meta && !$('#topics').hidden) drawTopics(true);
+    });
     function drawCatChips() {
       if (!meta || !meta.cats) return;
       const tot = new Map(); meta.topics.forEach(t => { const c = meta.cats[t[5]]; if (c) tot.set(c[0], (tot.get(c[0]) || 0) + t[3]); });
       const html = `<button type="button" class="cats-all" data-cat-f="" aria-pressed="${!cats.size}">All</button>` +
-        meta.cats.map(([id, name]) => `<button type="button" data-cat="${id}" data-cat-f="${id}" aria-pressed="${cats.has(id)}" title="${(tot.get(id) || 0).toLocaleString()} verses"><i class="cat-dot"></i>${esc(name)}<small>${(tot.get(id) || 0).toLocaleString()}</small></button>`).join('');
+        meta.cats.map(([id, name]) => `<button type="button" data-cat="${id}" data-cat-f="${id}" aria-pressed="${cats.has(id)}" title="${(tot.get(id) || 0).toLocaleString()} ${ITEMS}"><i class="cat-dot"></i>${esc(name)}<small>${(tot.get(id) || 0).toLocaleString()}</small></button>`).join('');
       $$('.cats').forEach(b => { b.innerHTML = html; });
     }
     document.addEventListener('click', e => {
@@ -1229,7 +1386,7 @@
         const w = relatedWord(t[6], raw, ws); if (w) rel.set(t[0], w);
         return !!w;
       }).sort((a, b) => (rel.has(a[0]) - rel.has(b[0])) || b[3] - a[3]).slice(0, 12);
-      fac.innerHTML = acOpts.map((t, i) => `<li role="option" data-i="${i}" aria-selected="${i === acSel}">${esc(t[1])}<small>${rel.has(t[0]) ? `related to “${esc(rel.get(t[0]))}” · ` : ''}${pl(t[2], 'flow')} · ${pl(t[3], 'verse')}</small></li>`).join('');
+      fac.innerHTML = acOpts.map((t, i) => `<li role="option" data-i="${i}" aria-selected="${i === acSel}">${esc(t[1])}<small>${rel.has(t[0]) ? `related to “${esc(rel.get(t[0]))}” · ` : ''}${pl(t[2], 'flow')} · ${pl(t[3], ITEM)}</small></li>`).join('');
       fac.hidden = !acOpts.length;
     }
     function pick(t) { sel.add(t[0]); fq.value = ''; acSel = -1; fac.hidden = true; drawChips(); apply(); fq.focus(); }
@@ -1312,19 +1469,20 @@
     }
     async function drawBySurah() {
       const box = $('#by-surah');
-      if (!surahTopics) box.innerHTML = '<p class="v-err">Loading the surahs…</p>';
+      if (!surahTopics) box.innerHTML = `<p class="v-err">Loading the ${UNITS}…</p>`;
       let per; try { per = await loadSurahTopics(); } catch (e) { box.innerHTML = `<p class="v-err">The topics could not be loaded (${esc(e.message)}).</p>`; return; }
       /* Each surah with the topics in it, as chips: the count is that topic's verses in this surah, and the shade
          says how much of the surah it takes up, so the heavy themes of a surah stand out at a glance. */
-      const jumps = [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110].map(n => `<a href="#bs-${n}">${n}</a>`).join('');
-      let html = `<nav class="bs-jump" aria-label="Jump to surah"><span>Jump to</span>${jumps}</nav><p class="bs-key"><i class="w1"></i><i class="w2"></i><i class="w3"></i><i class="w4"></i> darker = more of the surah</p>`;
-      for (let s = 1; s <= 114; s++) {
+      const N = meta.surahs.length;
+      const jumps = (HAD ? Array.from({ length: Math.ceil(N / 10) }, (_, k) => k * 10 + 1) : [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110]).map(n => `<a href="#bs-${n}">${unitNo(n)}</a>`).join('');
+      let html = `<nav class="bs-jump" aria-label="Jump to ${UNIT}"><span>Jump to</span>${jumps}</nav><p class="bs-key"><i class="w1"></i><i class="w2"></i><i class="w3"></i><i class="w4"></i> darker = more of the ${UNIT}</p>`;
+      for (let s = 1; s <= N; s++) {
         const ts = per.get(s) || [], tot = ts.reduce((n, t) => n + t.v, 0);
         const chips = order(ts.filter(t => inCats(t.slug))).map(t => { const sh = t.v / (tot || 1), w = sh >= 0.3 ? 4 : sh >= 0.15 ? 3 : sh >= 0.07 ? 2 : 1; return `<li><button type="button" class="tchip w${w}" data-topic="${t.slug}" data-surah="${s}"><i class="cat-dot" data-cat="${catOf(t.slug)}"></i>${esc(t.name)}<span>${t.v}</span></button></li>`; }).join('');
-        html += `<section class="bs" id="bs-${s}"><div class="bs-head"><a class="bs-name" href="${BASE}surah/${s}/"><span class="bs-no">${s}</span>${esc(surahName(s))}</a><span class="bs-meta">${pl(ts.length, 'topic')} · ${pl(tot, 'verse')}</span></div><ul class="bs-chips">${chips}</ul></section>`;
+        html += `<section class="bs" id="bs-${s}"><div class="bs-head"><a class="bs-name" href="${BASE}${UP}/${s}/"><span class="bs-no">${unitNo(s)}</span>${esc(surahName(s))}</a><span class="bs-meta">${pl(ts.length, 'topic')} · ${pl(tot, ITEM)}</span></div><ul class="bs-chips">${chips}</ul></section>`;
       }
       box.innerHTML = html;
-      $('#tl-count').textContent = '114 surahs';
+      $('#tl-count').textContent = `${N} ${UNITS}`;
       // Jump links scroll without touching the address: on this page "#..." picks the tab.
       $$('.bs-jump a', box).forEach(a => a.addEventListener('click', e => {
         e.preventDefault();
@@ -1360,7 +1518,7 @@
     function openLinkedTopic() { // the address names a topic: it opens. Says whether it did.
       const p = new URLSearchParams(location.search), slug = p.get('topic');
       if (!slug) return false;
-      const n = +p.get('in'), surah = Number.isInteger(n) && n >= 1 && n <= 114 ? n : 0;
+      const n = +p.get('in'), surah = Number.isInteger(n) && n >= 1 && n <= (meta ? meta.surahs.length : 114) ? n : 0;
       try {
         if (!topicBy.has(slug)) { history.replaceState(history.state, '', topicUrl('')); return false; } // no such topic: the page itself
         // Reloaded with the popup open, this step is already the popup's own: Back still closes it. A link followed
@@ -1393,10 +1551,10 @@
       $('#tp-title').textContent = surah ? `${t[1]} in ${surahName(surah)}` : t[1];
       const tc = meta.cats && meta.cats[t[5]];
       $('.tp-eyebrow', pop).innerHTML = tc ? `Topic · <span class="cat-name" data-cat="${tc[0]}">${esc(tc[1])}</span>` : 'Topic';
-      $('#tp-meta').textContent = `${pl(flows.length, 'flow')} · ${pl(v, 'verse')}` + (surah ? '' : ` · ${pl(new Set(all.map(f => f[1])).size, 'surah')}`);
+      $('#tp-meta').textContent = `${pl(flows.length, 'flow')} · ${pl(v, ITEM)}` + (surah ? '' : ` · ${pl(new Set(all.map(f => f[1])).size, UNIT)}`);
       const allBtn = $('#tp-all');
       allBtn.hidden = !surah || all.length === flows.length;
-      if (surah) { allBtn.textContent = `See all ${all.length} flows on ${t[1]} in the Quran`; allBtn.onclick = () => openTopic(slug, 0); }
+      if (surah) { allBtn.textContent = `See all ${all.length} flows on ${t[1]} in ${QT}`; allBtn.onclick = () => openTopic(slug, 0); }
       $('#tp-page').href = `${BASE}topic/${slug}/`;
       const tbl = $('.tp-table', pop), grouped = !surah && popGroup.checked;
       tbl.classList.toggle('hide-desc', false);
@@ -1410,6 +1568,7 @@
         items = [...gs.values()].flatMap(g => [g, ...g.flows]);
       }
       popList.innerHTML = items.map(x => (Array.isArray(x) ? rowHTML(x).replace(/ id="f-[^"]+"/, '') : groupHTML(x))).join(''); // the list below may hold the same rows
+      popBooks(slug, surah);
       const seq = surah ? order((await loadSurahTopics()).get(surah) || []) : allTopics(), i = seq.findIndex(x => x.slug === slug);
       $$('.tp-nav', pop).forEach(b => {
         const n = seq[i + +b.dataset.dir];
@@ -1423,9 +1582,28 @@
       if (flows.length <= 3) $$('.fl', popList).forEach(li => toggle(li, true)); // a few passages: show their verses straight away
       syncOpenAll();
     }
+    /* The other books in the popup: below the book's own list, or on a wide screen all three side by side (the list's
+       own tools, which work on the list, step aside meanwhile). A topic shown for one surah only has neither. */
+    const popSide = $('#tp-side'), pvSeg = $('.tp-pview', pop), popOthers = $('#tp-others'), popStrip = $('#tp-books');
+    async function popBooks(slug, surah) {
+      const my = pop._bk = (pop._bk || 0) + 1;
+      pop.classList.remove('side-mode'); popSide.hidden = true;
+      if (surah) { popOthers._gen = (popOthers._gen || 0) + 1; popSide._gen = (popSide._gen || 0) + 1; popOthers.innerHTML = ''; popSide.innerHTML = ''; popStrip.hidden = true; pvSeg.hidden = true; return; }
+      const multi = (await bookCount(slug)) >= 2;
+      if (my !== pop._bk) return;
+      pvSeg.hidden = !(multi && WIDE.matches);
+      $$('[data-pview]', pvSeg).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.pview === pview)));
+      if (multi && sideNow()) {
+        popOthers._gen = (popOthers._gen || 0) + 1; popOthers.innerHTML = ''; popStrip.hidden = true;
+        pop.classList.add('side-mode'); popSide.hidden = false; speech.drop(popList);
+        await drawOthers(popSide, slug, null, true);
+      } else { popSide._gen = (popSide._gen || 0) + 1; popSide.innerHTML = ''; await drawOthers(popOthers, slug, popStrip); }
+    }
+    pvSeg.addEventListener('click', e => { const b = e.target.closest('[data-pview]'); if (!b) return; pview = b.dataset.pview; store.set('qf-pview', pview); if (popCur) popBooks(popCur.slug, popCur.surah); });
+    WIDE.addEventListener('change', () => { if (pop.open && popCur) popBooks(popCur.slug, popCur.surah); });
     // "Open all verses" / "Close all verses": every passage of the topic opened at once, inside the popup.
     const openAllBtn = $('#tp-openall');
-    const syncOpenAll = () => { const rows = $$('.fl', popList); openAllBtn.textContent = rows.length && rows.every(li => li.classList.contains('open')) ? 'Close all verses' : 'Open all verses'; };
+    const syncOpenAll = () => { const rows = $$('.fl', popList); openAllBtn.textContent = `${rows.length && rows.every(li => li.classList.contains('open')) ? 'Close' : 'Open'} all ${HAD ? 'hadith' : 'verses'}`; };
     openAllBtn.addEventListener('click', () => { const rows = $$('.fl', popList), open = !rows.every(li => li.classList.contains('open')); rows.forEach(li => { if (li.classList.contains('open') !== open) toggle(li, open); }); syncOpenAll(); });
     popList.addEventListener('click', () => setTimeout(syncOpenAll)); // a row opened or closed by hand
     popGroup.addEventListener('change', () => { store.set('qf-popgroup', popGroup.checked); if (popCur) openTopic(popCur.slug, popCur.surah); });
@@ -1514,7 +1692,7 @@
         const on = isCovered(slug), last = !on && total - done === 1;
         today.innerHTML = `<div class="today-text"><p class="today-eyebrow">Today's topic${on ? ' <span class="today-done">✓ covered</span>' : ''}</p>` +
           `<p class="today-name" data-cat="${catOf(slug)}"><i class="cat-dot"></i>${esc(t[1])}</p>` +
-          `<p class="today-meta">${t[2]} flow${t[2] === 1 ? '' : 's'} · ${t[3]} verse${t[3] === 1 ? '' : 's'}${done ? ` · ${tally}` : ''}</p></div>` +
+          `<p class="today-meta">${t[2]} flow${t[2] === 1 ? '' : 's'} · ${t[3]} ${ITEM}${HAD || t[3] === 1 ? '' : 's'}${done ? ` · ${tally}` : ''}</p></div>` +
           `<div class="today-acts"><button type="button" data-today="open"${on ? '' : ' class="main"'}>${on ? 'Read again' : 'Read it'}</button>` +
           (last ? '' : `<button type="button" data-today="other"${on ? ' class="main"' : ''}>Another topic</button>`) + '</div>';
         today.dataset.slug = slug;
@@ -1597,6 +1775,7 @@
       const draw = () => {
         if (!window.d3) { box.innerHTML = '<p class="bub-note">The picture of topics could not be loaded. Every topic is in the list below.</p>'; return; }
         if (box._qf) box._qf.abort(); // a redraw (theme change) replaces the old listeners, never adds to them
+        if (!topics.length) { box.innerHTML = '<p class="bub-note">No topics to show here yet.</p>'; return; } // a book still being grouped, or a filter that leaves none
         const ac = box._qf = new AbortController(), on = (t, f, o) => box.addEventListener(t, f, { ...o, signal: ac.signal });
         const cs = getComputedStyle(document.documentElement), c = k => cs.getPropertyValue(k).trim();
         // a category's strong colour or its tint ('-t'); a topic without one keeps the old green and soft fill
@@ -1617,7 +1796,7 @@
           `<div class="bub-zoom"><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="out" aria-label="Zoom out">−</button><button type="button" data-tips="toggle" aria-label="How to move around" aria-controls="bub-hint" aria-expanded="${tips.on}">?</button></div>`;
         if (tips.on && !tips.t) setTips(true); // the 30 seconds start when the field is first drawn
         const svg = document.createElementNS(ns, 'svg');
-        svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${topics.length} topics sized by verse count; the list below has them all`);
+        svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${topics.length} topics sized by ${ITEM} count; the list below has them all`);
         box.appendChild(svg);
         const meas = document.createElementNS(ns, 'text'); meas.setAttribute('font-size', '100'); meas.setAttribute('visibility', 'hidden'); svg.appendChild(meas);
         const em = t => { meas.textContent = t; return meas.getComputedTextLength() / 100; };
@@ -1645,11 +1824,11 @@
         };
 
         const nodes = leaves.map(l => {
-          const big = l.r > max * 0.55, count = pl(l.data.v, 'verse');
+          const big = l.r > max * 0.55, count = pl(l.data.v, ITEM);
           const { fs, lines, top, sh, body } = layout(l.data.name, count, l.r), y = e => (e * fs).toFixed(2);
           const g = document.createElementNS(ns, 'g'); g.setAttribute('class', 'bub'); g.dataset.slug = l.data.slug;
           g.style.setProperty('--sh', `${y(sh)}px`); // re-centres the name when the count is hidden
-          g.innerHTML = `<title>${esc(l.data.name)}: ${pl(l.data.v, 'verse')} in ${pl(l.data.n, 'flow')}</title>` +
+          g.innerHTML = `<title>${esc(l.data.name)}: ${pl(l.data.v, ITEM)} in ${pl(l.data.n, 'flow')}</title>` +
             `<circle r="${l.r.toFixed(1)}" fill="${big ? cc(l.data.cat, '') : cc(l.data.cat, '-t')}" stroke="${cc(l.data.cat, '')}" stroke-width="${big ? 0 : 1.2}"></circle>` +
             `<text class="bn" text-anchor="middle" font-size="${fs.toFixed(2)}" fill="${big ? c('--cat-ink') : c('--fg')}">` +
             lines.map((t, i) => `<tspan x="0" y="${y(top + ASC + i * LH)}">${esc(t)}</tspan>`).join('') + '</text>' +

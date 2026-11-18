@@ -8,6 +8,10 @@
   const setup = document.getElementById('qz-setup'), box = document.getElementById('qz'), pg = document.getElementById('pg');
   if (!A || !setup || !box || !pg) return;
   const { getJSON, qmap, flowText, esc, store, rng, LOADING, markHard, wantLangs, toast, track, favs } = A;
+  // The book this quiz is for (the Quran unless the page says otherwise): its words and how its references read.
+  const { HAD, SRC, UNIT, UNITS, ITEM, UP, REF, unitNo } = A.book || { HAD: false, SRC: { key: 'quran' }, UNIT: 'surah', UNITS: 'surahs', ITEM: 'verse', UP: 'surah', REF: (s, v) => `${s}:${v}`, unitNo: s => s };
+  const WHOLE = HAD ? `the whole of ${SRC.title}` : 'the whole Quran';
+  const APP = HAD ? `quran-tenets-${SRC.key}` : 'quran-tenets';
   const BASE = (window.QF && window.QF.base) || '/';
   const $ = (q, el = document) => el.querySelector(q), $$ = (q, el = document) => [...el.querySelectorAll(q)];
   const N = 10;
@@ -69,7 +73,7 @@
     // which flow a verse is in, with the verse shown in the reader's language (English unless only Tamil is on)
     const f = pick(fl), v = f.a + Math.floor(Math.random() * (f.b - f.a + 1)), ls = wantLangs().filter(l => l !== 'ar'), lang = ls[0] || 'en';
     const t = await flowText(lang, s, f.a, f.b);
-    return { kind: 'verse', s, v, lang, key: `v${s}:${v}`, text: t[v - f.a], prompt: `Which flow is verse ${s}:${v} in?`, opts: options(f.name, fl), right: f.name, flow: f };
+    return { kind: 'verse', s, v, lang, key: `v${s}:${v}`, text: t[v - f.a], prompt: `Which flow is ${ITEM} ${REF(s, v)} in?`, opts: options(f.name, fl), right: f.name, flow: f };
   }
   async function makeRound(surah) {
     const kinds = shuffle(['verse', 'verse', 'verse', 'verse', 'next', 'next', 'next', 'where', 'where', 'where']);
@@ -112,7 +116,7 @@
     round.answers[round.i] = ok; if (ok) round.right++;
     $$('.qz-opts button', box).forEach(b => { b.disabled = true; if (b.dataset.o === q.right) b.classList.add('right'); else if (b === btn) b.classList.add('wrong'); });
     const f = q.flow, after = $('.qz-after', box), last = round.i === round.qs.length - 1;
-    after.innerHTML = `<p class="qz-fb ${ok ? 'ok' : 'no'}">${ok ? 'Right.' : `Not quite: it is “${esc(q.right)}”.`} <a href="${BASE}surah/${f.s}/#f-${f.s}-${f.a}">Read “${esc(f.name)}” · ${rng(f.s, f.a, f.b)}</a></p>` +
+    after.innerHTML = `<p class="qz-fb ${ok ? 'ok' : 'no'}">${ok ? 'Right.' : `Not quite: it is “${esc(q.right)}”.`} <a href="${BASE}${UP}/${f.s}/#f-${f.s}-${f.a}">Read “${esc(f.name)}” · ${rng(f.s, f.a, f.b)}</a></p>` +
       `<button type="button" class="qz-next">${last ? 'See your score' : 'Next question'}</button>`;
     after.hidden = false; $('.qz-next', after).focus({ preventScroll: true });
     after.scrollIntoView({ block: 'nearest' }); // the answer and the way on are never left below the screen's edge
@@ -125,11 +129,11 @@
     Object.assign(r, { best: Math.max(r.best, round.right), last: round.right, rounds: r.rounds + 1, right: r.right + round.right, asked: r.asked + round.qs.length, n: round.qs.length, at: new Date().toISOString().slice(0, 10) });
     all[key] = r; store.set('qf-quiz', all);
     track('quiz_done', { surah: round.surah, score: round.right });
-    const where = round.surah ? sName(round.surah) : 'the whole Quran', n = round.qs.length;
+    const where = round.surah ? sName(round.surah) : WHOLE, n = round.qs.length;
     const say = round.right === n ? 'Every one right. Well done.' : round.right >= n * 0.7 ? 'Very good.' : round.right >= n * 0.4 ? 'Good going; reading the flows again will help.' : 'A start: read the flows, then try again.';
     box.innerHTML = `<div class="qz-end"><p class="qz-score"><b>${round.right}</b> out of ${n}</p><p>${say}${isBest && r.rounds > 1 ? ' A new best for this quiz.' : ''}</p>` +
       `<p class="qz-meta">${esc(where)} · best ${r.best} of ${n} · ${r.rounds} round${r.rounds === 1 ? '' : 's'} played</p>` +
-      `<div class="qz-acts"><button type="button" data-again>Try again</button><button type="button" class="ghost" data-other>Choose another surah</button>${round.surah ? `<a href="${BASE}surah/${round.surah}/#read">Read ${esc(where)} through</a>` : ''}</div></div>`;
+      `<div class="qz-acts"><button type="button" data-again>Try again</button><button type="button" class="ghost" data-other>Choose another ${UNIT}</button>${round.surah ? `<a href="${BASE}${UP}/${round.surah}/#read">Read ${esc(where)} through</a>` : ''}</div></div>`;
     drawProgress();
     $('[data-again]', box).focus({ preventScroll: true });
   }
@@ -160,7 +164,7 @@
     const started = M.su.map((su, i) => i + 1).filter(s => (seen[s] && seen[s].length) || quiz[s]);
     const pct = x => Math.round(x * 100);
     const card = (big, small) => `<div class="pg-card"><b>${big}</b><span>${small}</span></div>`;
-    let html = `<div class="pg-cards">${card(`${read.toLocaleString()}`, `of ${total.toLocaleString()} flows read (${pct(read / total)}%)`)}${card(started.length, `of 114 surahs started`)}${card(nc, `of ${M.t.length} topics covered`)}${card(rounds, `quiz${rounds === 1 ? '' : 'zes'} played`)}${card(asked ? `${pct(right / asked)}%` : '–', 'answers right')}${card(nf, `favourite verse${nf === 1 ? '' : 's'}`)}</div>`;
+    let html = `<div class="pg-cards">${card(`${read.toLocaleString()}`, `of ${total.toLocaleString()} flows read (${pct(read / total)}%)`)}${card(started.length, `of ${M.su.length} ${UNITS} started`)}${card(nc, `of ${M.t.length} topics covered`)}${card(rounds, `quiz${rounds === 1 ? '' : 'zes'} played`)}${card(asked ? `${pct(right / asked)}%` : '–', 'answers right')}${card(nf, `favourite ${ITEM}${HAD || nf === 1 ? '' : 's'}`)}</div>`;
     html += `<div class="pg-keep"><p><b>Kept in this browser only.</b> ${read || rounds || nf || nc ? `You have ${[read && `${read} flow${read === 1 ? '' : 's'} read`, nc && `${nc} topic${nc === 1 ? '' : 's'} covered`, rounds && `${rounds} quiz${rounds === 1 ? '' : 'zes'} played`, nf && `${nf} favourite${nf === 1 ? '' : 's'}`].filter(Boolean).join(', ')}. ` : ''}Clearing your browsing data, a private window or another device starts again from nothing, and nothing is sent to us. Download a copy to keep it safe or to carry it to another device.</p>` +
       '<div class="pg-acts"><button type="button" data-export>Download my progress</button><label class="pg-import">Restore from a file<input type="file" accept="application/json,.json" data-import></label><button type="button" class="ghost" data-reset>Start again</button></div></div>';
     const rows = M.su.map((su, i) => {
@@ -168,22 +172,22 @@
       return { s, su, n, r, q };
     });
     const only = started.length > 0 && store.get('qf-pg-all', false) !== true;
-    html += `<div class="pg-head"><h3>Surah by surah</h3>${started.length ? `<label class="tp-check"><input type="checkbox" data-pg-all${only ? '' : ' checked'}> Show all 114</label>` : ''}</div>`;
-    html += '<ol class="pg-list">' + rows.filter(x => !only || x.r || x.q).map(({ s, su, n, r, q }) => `<li class="${r || q ? '' : 'pg-none'}"><a href="${BASE}surah/${s}/" class="pg-name"><span class="pg-no">${s}</span>${esc(su[0])}</a>` +
+    html += `<div class="pg-head"><h3>${HAD ? 'Book by book' : 'Surah by surah'}</h3>${started.length ? `<label class="tp-check"><input type="checkbox" data-pg-all${only ? '' : ' checked'}> Show all ${M.su.length}</label>` : ''}</div>`;
+    html += '<ol class="pg-list">' + rows.filter(x => !only || x.r || x.q).map(({ s, su, n, r, q }) => `<li class="${r || q ? '' : 'pg-none'}"><a href="${BASE}${UP}/${s}/" class="pg-name"><span class="pg-no">${unitNo(s)}</span>${esc(su[0])}</a>` +
       `<span class="pg-bar" role="img" aria-label="${r} of ${n} flows read"><span style="width:${Math.min(100, pct(r / (n || 1)))}%"></span></span><span class="pg-n">${r}/${n} flows</span>` +
       `<span class="pg-q">${q ? `quiz best ${q.best}/${q.n || 10}` : n >= 3 ? `<a href="?surah=${s}#qz-setup" data-quiz="${s}">take the quiz</a>` : ''}</span></li>`).join('') + '</ol>';
-    if (quiz['0']) html += `<p class="pg-all">Whole-Quran quiz: best ${quiz['0'].best} of ${quiz['0'].n || 10}, ${quiz['0'].rounds} round${quiz['0'].rounds === 1 ? '' : 's'}.</p>`;
+    if (quiz['0']) html += `<p class="pg-all">${HAD ? 'Whole-book quiz' : 'Whole-Quran quiz'}: best ${quiz['0'].best} of ${quiz['0'].n || 10}, ${quiz['0'].rounds} round${quiz['0'].rounds === 1 ? '' : 's'}.</p>`;
     pg.innerHTML = html;
   }
   pg.addEventListener('click', e => {
     const qz = e.target.closest('[data-quiz]');
     if (qz) { e.preventDefault(); $('#qz-s').value = qz.dataset.quiz; box.hidden = true; setup.hidden = false; setup.scrollIntoView({ block: 'center' }); $('#qz-s').focus(); return; }
     if (e.target.closest('[data-export]')) {
-      const data = { app: 'quran-tenets', version: 1, saved: new Date().toISOString() };
+      const data = { app: APP, version: 1, saved: new Date().toISOString() };
       KEYS.forEach(k => { data[k] = store.get(k, null); });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
-      a.download = `quran-tenets-progress-${data.saved.slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove();
+      a.download = `${APP}-progress-${data.saved.slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       return;
     }
@@ -197,7 +201,7 @@
     const inp = e.target.closest('[data-import]'); if (!inp || !inp.files[0]) return;
     try {
       const d = JSON.parse(await inp.files[0].text());
-      if (!d || !['quran-tenets', 'quran-flow'].includes(d.app)) throw new Error('this is not a Quran Tenets progress file');
+      if (!d || !(HAD ? [APP] : ['quran-tenets', 'quran-flow']).includes(d.app)) throw new Error(HAD ? `this is not a ${SRC.title} progress file from Quran Tenets` : 'this is not a Quran Tenets progress file');
       // Merged with what is here, never replacing it: flows read and favourites are joined, quiz scores keep the best.
       M = M || await qmap();
       const seen = cleanSeen(store.obj('qf-seen'));

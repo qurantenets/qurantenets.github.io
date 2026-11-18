@@ -734,3 +734,90 @@ body { padding-bottom: var(--bars-h, 0px) }
   .share-pop[open] { animation: qf-rise .22s cubic-bezier(.2, .8, .2, 1) }
   .share-pop[open]::backdrop { animation: qf-fade .22s ease-out }
 }
+
+/* ---------- the three books: Quran, Sahih al-Bukhari, Sahih Muslim ----------
+   One accent per book, always beside the book's name (never the only sign). */
+:root { --bk-quran: #0e5a43; --bk-bukhari: #8a4b0f; --bk-muslim: #24578f }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bk-quran: #7fc4a4; --bk-bukhari: #e0a75a; --bk-muslim: #84b2e6 } }
+:root[data-theme="dark"] { --bk-quran: #7fc4a4; --bk-bukhari: #e0a75a; --bk-muslim: #84b2e6 }
+[data-book="quran"] { --bk: var(--bk-quran) } [data-book="bukhari"] { --bk: var(--bk-bukhari) } [data-book="muslim"] { --bk: var(--bk-muslim) }
+.bk-dot { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--bk, var(--accent)); margin-right: 7px; vertical-align: 1px }
+/* A hadith book's Arabic is ordinary script, set in a Naskh face (the Quran keeps its own). */
+body[data-src] { --arabic: "Amiri", "Noto Naskh Arabic", serif }
+body[data-src] .v-ar { font-size: 1.32rem; line-height: 2.05 }
+@media (max-width: 560px) { body[data-src] .v-ar { font-size: 1.18rem; line-height: 1.95 } }
+.v-none { color: var(--muted); font-style: italic; margin: 6px 0 }
+.v-none sup { font: 500 .7rem var(--mono); font-style: normal; margin-right: 4px }
+
+/* The books bar: above the header, on every page. Plain links (it leaves for another book), not a filter. */
+.books { background: var(--raise); border-bottom: 1px solid var(--line); font: 500 .9rem/1 var(--body) }
+.books-in { max-width: 1180px; margin: 0 auto; display: flex; gap: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.books a { display: flex; align-items: center; height: 36px; color: var(--muted); text-decoration: none; white-space: nowrap; border-bottom: 3px solid transparent; padding-top: 3px }
+.books a:hover { color: var(--fg); text-decoration: underline; text-underline-offset: 4px }
+.books a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--bk) }
+.books .bk-s { display: none }
+@media (max-width: 767px) {
+  .books-in { gap: 0 }
+  .books a { flex: 1 1 0; justify-content: center; height: 44px; font-size: .88rem }
+  .books .bk-s { display: inline } .books .bk-l { display: none }
+}
+
+/* "In all three books" on the Topics page */
+.common-f { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 10px 0 4px }
+.common-f button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; cursor: pointer; font: 500 .88rem var(--body) }
+.common-f button small { font: 500 .75rem var(--mono); color: var(--muted) }
+.common-f button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink) }
+.common-f button[aria-pressed="true"] small { color: inherit; opacity: .85 }
+.common-note { color: var(--muted); font-size: .85rem }
+
+/* A topic in the other books: the jump strip in the popup's head, then one block per other book. */
+.tp-books { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px }
+.tp-books a { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; color: var(--fg); text-decoration: none; font: 500 .85rem var(--body); background: var(--bg) }
+.tp-books a small { font: 500 .75rem var(--mono); color: var(--muted); margin-left: 6px }
+.tp-books a[aria-current="true"] { border-color: var(--bk); box-shadow: inset 0 0 0 1px var(--bk) }
+.others { margin-top: 18px }
+.others:empty { display: none }
+.others-h { font: 400 1.15rem/1.3 var(--display); margin: 0 0 10px }
+.ot-books { display: grid; gap: 14px }
+.others-page .ot-books { grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); align-items: start }
+.ot-book { border: 1px solid var(--line); border-top: 3px solid var(--bk); border-radius: var(--r); background: var(--surface); padding: 12px 14px; scroll-margin-top: 12px }
+.ot-book h4 { margin: 0 0 8px; font: 600 1rem/1.3 var(--body); display: flex; align-items: center; flex-wrap: wrap; gap: 0 8px }
+.ot-book h4 small { font: 500 .78rem var(--mono); color: var(--muted) }
+.ot-list { list-style: none; margin: 0; padding: 0 }
+.ot { border-top: 1px solid var(--line); padding: 8px 0 }
+.ot:first-child { border-top: 0; padding-top: 0 }
+.ot-open { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; width: 100%; text-align: left; background: none; border: 0; padding: 4px 0; cursor: pointer }
+.ot-ref { font: 500 .85rem var(--mono); color: var(--bk) }
+.ot-unit { color: var(--muted); font-size: .85rem }
+.ot-open::after { content: "+"; margin-left: auto; color: var(--muted); font: 500 1rem var(--mono) }
+.ot.open .ot-open::after { content: "−" }
+.ot-desc { margin: 2px 0 0; font-size: .93rem }
+.ot-text { margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--bk) }
+.ot-text p { margin: 0 0 8px }
+.ot-text sup { font: 500 .7rem var(--mono); color: var(--muted); margin-right: 3px }
+.ot-ar { direction: rtl; text-align: right; font: 400 1.3rem/2 var(--arabic) }
+.ot-book[data-book="quran"] .ot-ar { font-family: "Amiri Quran", "Amiri", serif; font-size: 1.45rem }
+.ot-book:not([data-book="quran"]) .ot-ar { font-family: "Amiri", "Noto Naskh Arabic", serif }
+.ot-ta { font-family: var(--tamil); font-size: .95rem }
+.ot-all { padding-top: 6px }
+.ot-more { margin: 10px 0 0; font-size: .9rem }
+.ot-none { color: var(--muted); margin: 0; font-size: .92rem }
+
+/* Side by side (wide screens): all three books at once, one column each, in the books' order. */
+.tp-pview, .page-pview { margin-top: 10px }
+.page-pview { display: none }
+.side-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start }
+.side-cols .ot-book { padding: 0 12px 12px }
+.side-cols .ot-book h4 { position: sticky; top: -14px; z-index: 1; margin: 0 -12px 8px; padding: 12px 12px 8px; background: var(--surface); border-bottom: 1px solid var(--line); border-radius: var(--r) var(--r) 0 0 }
+.side-cols .ot-book.is-here { box-shadow: 0 0 0 1px var(--bk) }
+.side-cols .ot-book.is-here h4::after { content: "this book"; margin-left: auto; font: 500 .7rem var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .06em }
+.tp.side-mode { width: min(1480px, calc(100% - 32px)) }
+.tp.side-mode .tp-table, .tp.side-mode #tp-others, .tp.side-mode #tp-books, .tp.side-mode #tp-read, .tp.side-mode #tp-openall, .tp.side-mode label:has(#tp-group) { display: none !important }
+@media (min-width: 1100px) {
+  .page-pview { display: inline-flex; margin: 0 0 12px }
+  body.side-mode .topic .flow-table, body.side-mode .topic .others-page, body.side-mode .topic [data-expand-all],
+  body.side-mode .topic .ctl label:has([data-desc]), body.side-mode .topic .ctl label:has([data-count]) { display: none !important }
+  .side-page { position: relative; left: 50%; transform: translateX(-50%); width: min(1440px, calc(100vw - 48px)) }
+  .side-page .side-cols .ot-book h4 { top: calc(var(--nav-h, 62px) + 1px) }
+}
+@media (max-width: 1099px) { .tp-pview { display: none !important } }

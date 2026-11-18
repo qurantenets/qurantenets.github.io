@@ -1,0 +1,823 @@
+/* Quran Tenets - direction A "Illumination": Mushaf ivory, green ink, gilded timeline nodes.
+   Layout: a single reading column (max ~74ch) with a gutter timeline. One menu: top bar, or a bottom bar on phones. */
+:root {
+  --bg: #fbfaf6; --surface: #ffffff; --raise: #f3f1e9; --fg: #1e2a24; --muted: #5f6b63; --line: #e4e1d6;
+  --accent: #0e5a43; --accent-ink: #ffffff; --gold: #a8862f; --soft: #e7f0eb; --focus: #0e5a43;
+  --display: "Marcellus", Georgia, serif; --body: "Literata", Georgia, serif;
+  --arabic: "Amiri Quran", "Amiri", "Noto Naskh Arabic", serif; --tamil: "Noto Sans Tamil", var(--body);
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace; --nav-h: 62px;
+  --measure: 74ch; --r: 10px;
+  /* Topic categories (data/categories.json): a strong colour and a light tint each; white reads on every strong one. */
+  --c-faith: #0f6b63; --c-faith-t: #d8ece8; --c-prophets: #9a5b12; --c-prophets-t: #f3e4cc;
+  --c-worship: #3d6e1f; --c-worship-t: #e0ecd3; --c-life: #24578f; --c-life-t: #dbe6f2;
+  --c-hereafter: #5e4596; --c-hereafter-t: #e6def3; --c-warnings: #a3291c; --c-warnings-t: #f5dcd8;
+  --c-events: #6a5844; --c-events-t: #ebe3d8; --cat-ink: #ffffff;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111815; --surface: #17201c; --raise: #1c2722; --fg: #e9e6dc; --muted: #a6ad9f; --line: #2a3530;
+  --accent: #7fc4a4; --accent-ink: #0d1612; --gold: #d6b35c; --soft: #1f3229; --focus: #7fc4a4; color-scheme: dark;
+  --c-faith: #6cc5b9; --c-faith-t: #183a35; --c-prophets: #e0a75a; --c-prophets-t: #3a2c18;
+  --c-worship: #9ccc72; --c-worship-t: #24331a; --c-life: #84b2e6; --c-life-t: #1b2c40;
+  --c-hereafter: #b7a0e6; --c-hereafter-t: #2c2442; --c-warnings: #ee8f84; --c-warnings-t: #42201c;
+  --c-events: #c9b39a; --c-events-t: #332b22; --cat-ink: #10140f } }
+:root[data-theme="dark"] {
+  --bg: #111815; --surface: #17201c; --raise: #1c2722; --fg: #e9e6dc; --muted: #a6ad9f; --line: #2a3530;
+  --accent: #7fc4a4; --accent-ink: #0d1612; --gold: #d6b35c; --soft: #1f3229; --focus: #7fc4a4; color-scheme: dark;
+  --c-faith: #6cc5b9; --c-faith-t: #183a35; --c-prophets: #e0a75a; --c-prophets-t: #3a2c18;
+  --c-worship: #9ccc72; --c-worship-t: #24331a; --c-life: #84b2e6; --c-life-t: #1b2c40;
+  --c-hereafter: #b7a0e6; --c-hereafter-t: #2c2442; --c-warnings: #ee8f84; --c-warnings-t: #42201c;
+  --c-events: #c9b39a; --c-events-t: #332b22; --cat-ink: #10140f }
+
+*, *::before, *::after { box-sizing: border-box }
+html { -webkit-text-size-adjust: 100% }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 1rem/1.6 var(--body);
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px) }
+a { color: var(--accent); text-underline-offset: 3px }
+a:hover { text-decoration-thickness: 2px }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px }
+[hidden] { display: none !important }
+kbd { font: 500 .72rem/1 var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 2px 5px; color: var(--muted); background: var(--surface) }
+button { font: inherit; color: inherit }
+.skip { position: absolute; left: -999px; top: 8px; background: var(--surface); padding: 8px 12px; z-index: 50 }
+.skip:focus { left: 8px }
+.wrap { max-width: calc(var(--measure) + 8rem); margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+
+/* top bar */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line) }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 21; background: var(--surface) }
+.top-in { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; gap: 12px 18px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.brand { font: 400 1.3rem/1 var(--display); color: var(--fg); text-decoration: none; display: flex; gap: 8px; align-items: baseline; white-space: nowrap }
+.brand span { font: 400 1.05rem/1 var(--arabic); color: var(--accent) }
+.search-btn { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; background: var(--bg); color: var(--muted); cursor: pointer; text-align: left }
+.search-btn .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.search-btn kbd { margin-left: auto }
+/* The one menu: in the top bar here, a bar along the bottom on phones (below). */
+.nav { display: flex; gap: 4px; font: 500 .92rem var(--body) }
+.nav a { color: var(--muted); text-decoration: none; padding: 6px 9px; border-radius: 8px; white-space: nowrap }
+.nav a:hover { color: var(--fg) }
+.nav a[aria-current="page"] { color: var(--accent); background: var(--soft) }
+.nav .ni, .nav-search { display: none }
+.theme-btn { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; width: 34px; height: 34px; cursor: pointer; flex: none }
+@media (max-width: 760px) {
+  /* Phones: search moves into the menu, and the menu to the bottom of the screen, in reach of the thumb. The top
+     bar gives up its blur here: a blurred parent would pin the bottom bar to itself instead of to the screen. */
+  .top { background: var(--surface); backdrop-filter: none }
+  .top-in { min-height: 62px }
+  .search-btn { display: none }
+  .top .nav-fav { margin-left: auto }
+  .nav { position: fixed; z-index: 1; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; align-items: end;
+    padding: 6px max(6px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px));
+    background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -6px 18px rgb(0 0 0 / .06); font-size: .7rem }
+  .nav a, .nav-search { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 48px; padding: 4px 2px; border-radius: 10px;
+    color: var(--muted); font: 500 .7rem/1.1 var(--body); text-align: center; -webkit-tap-highlight-color: transparent; touch-action: manipulation }
+  .nav a[aria-current="page"] { color: var(--accent); background: none; font-weight: 600 }
+  .nav .ni { display: block }
+  .nav .nav-about { display: none }
+  .nav-search { color: var(--fg) }
+  .nav-fab { display: grid; place-items: center; width: 52px; height: 52px; margin-top: -26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+    border: 4px solid var(--surface); box-shadow: 0 6px 16px rgb(0 0 0 / .18) }
+  .nav-fab .ni { width: 24px; height: 24px }
+  .nav a:focus-visible, .nav-search:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px }
+  .nav a:active, .nav-search:active .nav-fab { transform: scale(.96) }
+  /* Room for the bar: the page ends above it, and the floating bars sit above it. */
+  body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)) }
+  body > .share-bar, body > .sp-bar, body > .consent { --bar-b: calc(var(--nav-h) + 24px) }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) { .nav a:active, .nav-search:active .nav-fab { transform: none } }
+
+/* hero */
+.hero { padding-block: 40px 18px }
+.hero h1 { font: 400 clamp(1.9rem, 4.4vw, 2.9rem)/1.12 var(--display); margin: 0; max-width: 22ch; text-wrap: balance }
+.lede { max-width: 62ch; color: var(--muted); font-size: 1.06rem; margin: 14px 0 0 }
+.stats { margin: 16px 0 0; font: 400 .92rem var(--body); color: var(--muted) }
+.stats b { color: var(--fg); font-variant-numeric: tabular-nums }
+
+/* tabs and filters */
+.views { margin-top: 18px }
+.views > .panel { border-top: 1px solid var(--line) }
+.panel { padding-block: 20px 48px }
+.panel .filters + .filters { margin-top: 8px }
+.flow-table { margin-top: 10px }
+.filters { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; font-size: .9rem; color: var(--muted) }
+.filters label { display: flex; gap: 8px; align-items: center; min-width: 0 }
+.filters select { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; max-width: 100%; min-width: 0 }
+.f-q { flex: 2 1 260px }
+.f-q input { flex: 1; min-width: 0; font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px }
+.f-surah, .f-topic { flex: 1 1 200px }
+.f-surah select, .f-topic select { flex: 1; min-width: 0 }
+.f-count { margin-left: auto; font-variant-numeric: tabular-nums }
+.keys { font-size: .8rem; color: var(--muted); margin: 10px 0 6px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center }
+@media (max-width: 760px) { .keys { display: none } .f-count { margin-left: 0 } }
+.note { color: var(--muted); font-size: .92rem; margin: 0 0 12px }
+
+/* surah / topic header */
+.sh { padding-block: 34px 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 18px; align-items: end }
+.eyebrow { grid-column: 1 / -1; margin: 0; font: 500 .74rem var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--gold) }
+.sh h1 { margin: 0; font: 400 clamp(1.8rem, 4vw, 2.6rem)/1.1 var(--display); text-wrap: balance; min-width: 0 }
+.sh-mean { color: var(--muted); font-size: .55em; white-space: nowrap }
+.sh-ar { margin: 0; font: 400 clamp(2rem, 5vw, 2.8rem)/1.2 var(--arabic); color: var(--accent); direction: rtl }
+.sh-meta { grid-column: 1 / -1; margin: 6px 0 0; color: var(--muted); font-size: .92rem }
+.sh-meta b { color: var(--fg); font-variant-numeric: tabular-nums }
+.ctl { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 12px 0; margin-bottom: 4px; border-block: 1px solid var(--line); font-size: .9rem; color: var(--muted) }
+.ctl label { display: flex; gap: 6px; align-items: center; cursor: pointer }
+.ghost { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: .86rem }
+.ghost:hover { border-color: var(--accent); color: var(--accent) }
+.ctl .ghost { margin-left: auto }
+
+/* the flow table: minimal rows, one per flow (home, surah and topic pages share it) */
+.flow-table { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden }
+.fl-head, .fl, .gap { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr) 6.6rem 9.5rem 3.4rem; gap: 0 12px; align-items: baseline; padding: 9px 14px }
+.no-surah .fl-head, .no-surah .fl, .no-surah .gap { grid-template-columns: 3.2rem minmax(0, 1fr) 6.6rem 3.4rem }
+.no-surah .c-surah { display: none }
+.hide-count .c-n { display: none }
+.hide-count .fl-head, .hide-count .fl, .hide-count .gap { grid-template-columns: 3.2rem minmax(0, 1fr) 6.6rem 9.5rem }
+.no-surah.hide-count .fl-head, .no-surah.hide-count .fl, .no-surah.hide-count .gap { grid-template-columns: 3.2rem minmax(0, 1fr) 6.6rem }
+.fl-head { background: var(--accent); color: var(--accent-ink); font: 600 .78rem var(--body); letter-spacing: .05em; text-transform: uppercase; padding-block: 10px }
+.fl-head button { all: unset; cursor: pointer; display: inline-flex; gap: 5px; align-items: center }
+.fl-head button:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px }
+.fl-head [aria-sort="ascending"]::after { content: "↑" } .fl-head [aria-sort="descending"]::after { content: "↓" }
+.fl-head [aria-sort="none"]::after { content: "↕"; opacity: .55 }
+.timeline { list-style: none; margin: 0; padding: 0 }
+.fl, .gap { border-top: 1px solid var(--line) }
+.fl:first-child, .gap:first-child { border-top: 0 }
+.fl { scroll-margin-top: calc(70px + env(safe-area-inset-top, 0px)) }
+.fl:hover { background: var(--raise) }
+.fl.open { background: var(--soft) }
+.fl.kb { box-shadow: inset 3px 0 0 var(--accent) }
+.c-no { font: 500 .78rem var(--mono); color: var(--muted); font-variant-numeric: tabular-nums }
+.fl-main { min-width: 0 }
+.fl-open { all: unset; cursor: pointer; font: 400 1.04rem/1.4 var(--display); color: var(--fg); overflow-wrap: anywhere }
+.fl-open:hover, .fl-open:focus-visible { color: var(--accent) }
+.fl-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px }
+.fl-desc { margin: 2px 0 0; color: var(--muted); font-size: .9rem; max-width: 64ch }
+.hide-desc .fl-desc { display: none }
+.c-rg, .c-n { font: 500 .8rem var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap }
+.c-n { text-align: right }
+.c-surah { font-size: .9rem; color: var(--muted); text-decoration: none; overflow-wrap: anywhere }
+.c-surah:hover { color: var(--accent) }
+.fl-verses { grid-column: 1 / -1 }
+.gap { color: var(--muted) }
+.gap .fl-main { font-style: italic }
+.gap a { font-style: normal; font-size: .88rem; margin-left: 6px }
+.sec { list-style: none; padding: 7px 14px 5px; background: var(--raise); border-top: 1px solid var(--line); font: 600 .7rem var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; gap: 8px; align-items: center }
+.sec:first-child { border-top: 0 }
+.sec i { font: normal .95rem/1 var(--arabic); color: var(--gold); letter-spacing: 0 }
+.loading, .empty { color: var(--muted); padding: 18px 14px; list-style: none }
+.sentinel { height: 1px; list-style: none }
+@media (max-width: 640px) {
+  .fl-head { display: none }
+  .fl, .gap, .no-surah .fl, .no-surah .gap, .hide-count .fl, .hide-count .gap, .no-surah.hide-count .fl, .no-surah.hide-count .gap { grid-template-columns: 2.4rem minmax(0, 1fr) auto; padding: 10px 12px }
+  .c-surah { grid-column: 2; grid-row: 2; font-size: .82rem }
+  .c-rg { grid-column: 3; grid-row: 1 }
+  .c-n { display: none }
+}
+
+/* verses */
+.fl-verses { display: grid; gap: 16px; margin: 12px 0 8px; padding: 14px 0 4px; border-top: 1px solid var(--line) }
+.v { display: grid; gap: 8px; padding-bottom: 14px; border-bottom: 1px dashed var(--line) }
+.v:last-child { border-bottom: 0 }
+.v-ar { direction: rtl; text-align: right; font: 400 1.75rem/2.3 var(--arabic); color: var(--fg) }
+.v-mark { display: inline-grid; place-items: center; min-width: 1.85em; height: 1.85em; margin-inline: .3em; border: 1.5px solid var(--gold); border-radius: 50%; font: 400 .6em/1 var(--arabic); color: var(--accent); vertical-align: .38em }
+.v-en { max-width: var(--measure) }
+.v-en sup, .v-ta sup { font: 500 .7rem var(--mono); color: var(--accent); margin-right: 6px }
+.v-ta { font: 400 .98rem/1.75 var(--tamil); color: var(--fg); max-width: var(--measure) }
+.v-links { font-size: .84rem; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap }
+.v-err { color: var(--muted); font-style: italic }
+@media (max-width: 560px) { .v-ar { font-size: 1.45rem; line-height: 2.15 } }
+
+/* surah grid */
+.surah-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px }
+.sc a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); text-decoration: none; color: var(--fg); height: 100% }
+.sc a:hover { border-color: var(--accent) }
+.sc-no { grid-row: span 2; font: 500 .8rem var(--mono); color: var(--gold); padding-top: 3px; min-width: 1.8rem; font-variant-numeric: tabular-nums }
+.sc-name { font: 400 1.02rem/1.25 var(--display); min-width: 0 }
+.sc-name small { display: block; font: 400 .8rem var(--body); color: var(--muted) }
+.sc-ar { font: 400 1.25rem/1 var(--arabic); color: var(--accent); direction: rtl }
+.sc-meta { grid-column: 2 / -1; font-size: .78rem; color: var(--muted) }
+.sc-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--raise); overflow: hidden; margin-top: 8px }
+.sc-bar span { display: block; height: 100%; background: var(--accent) }
+
+/* topics */
+.bubbles { width: 100%; max-width: 760px; margin: 0 auto 18px }
+.bubbles svg { width: 100%; height: auto; display: block }
+.bubbles text { font-family: var(--body); pointer-events: none }
+.bubbles a circle { transition: opacity .15s }
+.bubbles a:hover circle, .bubbles a:focus circle { opacity: .82 }
+.topic-list { list-style: none; margin: 0; padding: 0; columns: 3 220px; column-gap: 24px }
+.topic-list li { break-inside: avoid; padding: 3px 0; display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line) }
+.topic-list a { text-decoration: none; color: var(--fg) }
+.topic-list a:hover { color: var(--accent) }
+.topic-list span { font: 500 .76rem var(--mono); color: var(--muted); font-variant-numeric: tabular-nums }
+
+/* prev / next */
+.pn { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-block: 26px 40px; border-top: 1px solid var(--line); margin-top: 18px }
+.pn a { text-decoration: none; font-family: var(--display); font-size: 1.05rem }
+
+/* prose pages */
+.prose { max-width: calc(var(--measure) + 2rem); padding-block: 34px 56px }
+.prose h1 { font: 400 2.2rem/1.15 var(--display); margin: 0 0 12px }
+.prose h2 { font: 400 1.35rem/1.2 var(--display); margin: 28px 0 8px }
+.prose li { margin-bottom: 6px }
+
+/* footer: what the site is, where the text comes from, privacy, word meanings, each under its own heading across
+   the width of the page; then a closing line with the feature request and the visit count */
+.foot { border-top: 1px solid var(--line); background: var(--surface); margin-top: 28px }
+.foot-in { max-width: 1180px; margin: 0 auto; padding-block: 30px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: .86rem; line-height: 1.55; color: var(--muted) }
+.foot-cols { display: grid; grid-template-columns: 1.2fr 1.2fr 1.4fr 1fr; gap: 26px 40px }
+.foot-cols > div { min-width: 0 }
+.foot-cols p, .foot-src { margin: 0 }
+.foot-cols p + p, .foot-src + p { margin-top: 10px }
+.foot-brand { display: flex; align-items: baseline; gap: 8px; font: 400 1.3rem/1.1 var(--display); color: var(--fg) }
+.foot-brand span { font: 400 1.05rem/1 var(--arabic); color: var(--accent) }
+.foot h2 { margin: 3px 0 9px; font: 600 .72rem/1.4 var(--body); letter-spacing: .09em; text-transform: uppercase; color: var(--fg) }
+.foot-src div { display: grid; grid-template-columns: 4.4em minmax(0, 1fr); column-gap: 8px }
+.foot-src dt { color: var(--fg) }
+.foot-src dd { margin: 0 }
+.foot-btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; min-height: 38px; padding: 4px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); font: 500 .84rem var(--body); color: var(--fg) }
+.foot-btn:hover { border-color: var(--accent); color: var(--accent) }
+.foot-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.foot-end { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 24px; margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--line) }
+.foot-end a { padding-block: 6px }
+.foot-end p { margin: 0 }
+@media (max-width: 1020px) { .foot-cols { grid-template-columns: 1fr 1fr } }
+@media (max-width: 600px) { .foot-cols { grid-template-columns: 1fr; gap: 22px } .foot-in { padding-block: 24px 30px } .foot-end { margin-top: 22px } }
+
+/* search */
+.search-dlg { position: fixed; inset: 0; z-index: 40; background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(3px); padding: calc(env(safe-area-inset-top, 0px) + 8vh) max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)) }
+.search-box { max-width: 640px; margin: 0 auto; display: flex; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px; box-shadow: 0 12px 40px rgb(0 0 0 / .15) }
+.search-box input { flex: 1; min-width: 0; border: 0; background: transparent; font: 400 1.05rem var(--body); color: var(--fg); padding: 6px 8px }
+.search-box input:focus { outline: none }
+.search-box button { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 0 10px; cursor: pointer; font: 500 .8rem var(--mono); color: var(--muted) }
+.results { list-style: none; max-width: 640px; margin: 8px auto 0; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; max-height: 62vh; overflow-y: auto }
+.results:empty { display: none }
+.results a { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 9px 12px; border-radius: 8px; text-decoration: none; color: var(--fg) }
+.results a[aria-selected="true"], .results a:hover { background: var(--soft) }
+.results b { font: 400 1rem var(--display); font-weight: 400 }
+.results small { grid-column: 1 / -1; color: var(--muted); font-size: .82rem }
+.results em { font: 500 .74rem var(--mono); color: var(--muted); font-style: normal }
+
+/* consent */
+.consent { position: fixed; z-index: 30; left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(var(--bar-b, 12px) + env(safe-area-inset-bottom, 0px)); max-width: 560px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; box-shadow: 0 10px 30px rgb(0 0 0 / .12); font-size: .88rem }
+.consent p { margin: 0; flex: 1 1 260px }
+.consent div { display: flex; gap: 8px }
+.consent button { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 6px 14px; cursor: pointer }
+.consent button[data-consent="accepted"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important } }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+.fl-head .c-n { color: inherit; font: inherit }
+.basmala { grid-column: 1 / -1; margin: 10px 0 0; text-align: center; direction: rtl; font: 400 1.7rem/1.8 var(--arabic); color: var(--accent) }
+/* topics: Apple Watch style field */
+.bubbles { position: relative; width: 100%; max-width: none; height: min(74vh, 780px); min-height: 420px; margin: 0 0 18px; overflow: hidden; border-radius: 18px; border: 1px solid var(--line); background: radial-gradient(circle at 50% 50%, var(--surface), var(--bg) 75%); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; outline: none }
+.bubbles:focus-visible { box-shadow: 0 0 0 2px var(--focus) }
+.bubbles.dragging { cursor: grabbing }
+.bubbles svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block }
+.bubbles .bub { cursor: pointer }
+.bubbles .bub text { font-family: var(--body); pointer-events: none }
+.bubbles .bub.nolabel text, .bubbles .bub.nocount .bc { display: none }
+.bubbles .bub:hover circle { filter: brightness(1.08) }
+.bub-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px); margin: 0; padding: 4px 4px 4px 14px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 88%, transparent); text-align: center; font-size: .78rem; color: var(--muted); pointer-events: none; z-index: 1; display: flex; align-items: center; gap: 4px; transition: opacity .25s ease, visibility 0s }
+.bub-hint.off { opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility 0s .25s }
+.bub-hint button { all: unset; pointer-events: auto; cursor: pointer; flex: none; position: relative; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 1.15rem; line-height: 1; color: var(--muted) }
+.bub-hint button::after { content: ''; position: absolute; inset: -8px } /* a 44px target around the 28px mark */
+.bub-hint button:hover { background: var(--raise); color: var(--fg) }
+.bub-hint button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.bub-zoom button[aria-expanded="true"] { border-color: var(--accent); color: var(--accent) }
+@media (prefers-reduced-motion: reduce) { .bub-hint, .bub-hint.off { transition: none } }
+/* the whole row opens its verses */
+.fl { cursor: pointer }
+.fl .fl-verses { cursor: auto }
+.fl-open::after { content: ""; display: inline-block; width: .45em; height: .45em; margin-left: .55em; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-.2em) rotate(45deg); transition: transform .15s }
+.fl.open .fl-open::after { transform: translateY(.05em) rotate(-135deg) }
+.fl:hover .fl-open::after { border-color: var(--accent) }
+/* flows: topic chips */
+.f-tags { position: relative; flex: 2 1 340px; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; cursor: text }
+.f-tags:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) }
+.f-chips { display: contents }
+.f-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--soft); color: var(--fg); border-radius: 999px; padding: 2px 4px 2px 10px; font-size: .9rem }
+.f-chip small { font: 500 .7rem var(--mono); color: var(--muted) }
+.f-chip button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 4px; border-radius: 50% }
+.f-chip button:hover { color: var(--fg) }
+.f-tags input { flex: 1 1 160px; min-width: 120px; border: 0; background: transparent; font: inherit; color: var(--fg); padding: 4px }
+.f-tags input:focus { outline: none }
+.f-ac { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 15; list-style: none; margin: 0; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 30px rgb(0 0 0 / .14); max-height: 300px; overflow-y: auto }
+.f-ac li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 10px; border-radius: 7px; cursor: pointer; color: var(--fg) }
+.f-ac li small { color: var(--muted); font-size: .78rem; white-space: nowrap }
+.f-ac li[aria-selected="true"], .f-ac li:hover { background: var(--soft) }
+
+/* Loading more flows: skeleton rows on first paint, then a quiet end-of-list loader that appears while we
+   wait to see whether the reader really stays at the end (see app.js nearEnd). */
+.sk { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr) 6.6rem 9.5rem 3.4rem; gap: 0 12px; align-items: center; padding: 13px 14px; border-top: 1px solid var(--line); list-style: none }
+.skel { display: block; height: .7rem; border-radius: 4px; background: linear-gradient(90deg, var(--raise) 25%, color-mix(in srgb, var(--raise) 40%, var(--surface)) 50%, var(--raise) 75%); background-size: 200% 100%; animation: qf-shimmer 1.3s ease-in-out infinite }
+.skel.w6 { width: 60% } .skel.w40 { width: 72% } .skel.w14 { width: 80% } .skel.w20 { width: 70% }
+@media (max-width: 640px) { .sk { grid-template-columns: 2.4rem minmax(0, 1fr) auto; padding: 12px } .sk .skel:nth-child(n+4) { display: none } .sk .skel.w14 { width: 3.6rem } }
+.more { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem }
+.more > span:last-child { opacity: 0; transition: opacity .2s }
+.more .qf-loader { width: 18px; height: 18px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--gold) 22%, transparent); border-top-color: var(--gold); opacity: 0; transition: opacity .2s }
+.more[data-loading] > span:last-child, .more[data-loading] .qf-loader { opacity: 1 }
+.more[data-loading] .qf-loader { animation: qf-spin .8s linear infinite }
+@keyframes qf-spin { to { transform: rotate(360deg) } }
+@keyframes qf-shimmer { 0% { background-position: 100% 0 } 100% { background-position: -100% 0 } }
+@media (prefers-reduced-motion: reduce) { .skel, .more[data-loading] .qf-loader { animation: none } }
+
+/* Topic field: zoom buttons, and the name re-centred in its circle when the count below it is too small to show. */
+.bub-zoom { position: absolute; top: 10px; right: 10px; z-index: 2; display: flex; flex-direction: column; gap: 6px }
+.bub-zoom button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 500 1.15rem/1 var(--body); cursor: pointer; display: grid; place-items: center; padding: 0 }
+.bub-zoom button:hover { border-color: var(--accent); color: var(--accent) }
+.bub-zoom button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.bubbles .bub.nocount .bn { transform: translateY(var(--sh)) }
+/* Topic names are measured to fit their circle; a fixed optical size keeps width exactly proportional to size. */
+.bubbles svg text { font-optical-sizing: none }
+
+/* Group by topic: a heading row per topic, spanning the table, with the topic's totals. */
+.fl-group { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; padding: 14px 14px 8px; border-top: 1px solid var(--line); background: var(--raise); list-style: none }
+.fl-group a { font: 400 1.12rem/1.3 var(--display); color: var(--accent); text-decoration: none; overflow-wrap: anywhere; min-width: 0 }
+.fl-group a:hover { text-decoration: underline }
+.fl-group-n { font: 500 .78rem var(--mono); color: var(--muted); white-space: nowrap }
+.fl-group + .fl { border-top-color: transparent }
+
+/* Reading aloud: a speaker button on each English/Tamil line, the line being read tinted with a gold edge,
+   and the word being read highlighted (when the voice reports word positions). */
+.v-speak { all: unset; display: inline-grid; place-items: center; width: 30px; height: 30px; margin-left: 6px; vertical-align: -9px; border-radius: 50%; color: var(--muted); cursor: pointer }
+.v-speak:hover { color: var(--accent); background: var(--soft) }
+.v-speak:focus-visible, .v-readall:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.v-speak[aria-pressed="true"] { color: var(--accent-ink); background: var(--accent) }
+[data-speak].speaking { background: color-mix(in srgb, var(--soft) 70%, transparent); box-shadow: inset 3px 0 0 var(--gold); border-radius: 6px; padding: 4px 8px; margin: -4px -8px }
+.w-now { background: color-mix(in srgb, var(--gold) 46%, transparent); border-radius: 3px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--gold) 46%, transparent) }
+.v-readall { all: unset; display: inline-flex; align-items: center; gap: 6px; color: var(--accent); cursor: pointer; font-weight: 500 }
+.v-readall:hover { text-decoration: underline }
+.v-readall[aria-pressed="true"] { color: var(--fg) }
+.v-nospeak { margin: 6px 0 0; font-size: .82rem; color: var(--muted); font-style: italic }
+@media (prefers-reduced-motion: no-preference) { .w-now { transition: background-color .08s } }
+/* Grouped: the heading already names the topic, so each row hides it (still read out by screen readers) and
+   keeps only the open arrow. */
+.grouped .fl .fl-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap }
+.grouped .fl .fl-open::after { margin-left: 0 }
+
+/* Topics: view and sort switches above the list. */
+.tl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 22px 0 12px }
+.seg { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface) }
+.seg button { all: unset; cursor: pointer; padding: 6px 14px; border-radius: 999px; font: 500 .84rem var(--body); color: var(--muted); white-space: nowrap }
+.seg button:hover { color: var(--fg) }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink) }
+.seg button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.tl-count { margin-left: auto; font: 500 .8rem var(--mono); color: var(--muted) }
+
+/* By surah: each surah with its topics as chips; the shade is the topic's share of the surah. */
+.bs-jump { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 6px; font-size: .82rem; color: var(--muted) }
+.bs-jump span { margin-right: 4px }
+.bs-jump a { min-width: 2.1em; padding: 3px 6px; text-align: center; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: var(--fg); font: 500 .8rem var(--mono); background: var(--surface) }
+.bs-jump a:hover { border-color: var(--accent); color: var(--accent) }
+.bs-key { display: flex; align-items: center; gap: 4px; margin: 0 0 10px; font-size: .78rem; color: var(--muted) }
+.bs-key i { width: 14px; height: 10px; border-radius: 3px; border: 1px solid var(--line) }
+.bs { padding: 14px 0 16px; border-top: 1px solid var(--line); scroll-margin-top: calc(76px + env(safe-area-inset-top, 0px)) }
+.bs-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 10px }
+.bs-name { display: inline-flex; align-items: baseline; gap: 10px; font: 400 1.18rem/1.25 var(--display); color: var(--fg); text-decoration: none }
+.bs-name:hover { color: var(--accent) }
+.bs-no { font: 500 .78rem var(--mono); color: var(--gold); min-width: 2ch }
+.bs-meta { font: 500 .78rem var(--mono); color: var(--muted) }
+.bs-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px }
+.tchip { all: unset; cursor: pointer; display: inline-flex; align-items: baseline; gap: 7px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); font: 400 .9rem/1.3 var(--body); color: var(--fg); overflow-wrap: anywhere }
+.tchip span { font: 500 .74rem var(--mono); color: var(--muted) }
+.tchip:hover { border-color: var(--accent) }
+.tchip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.w1, .bs-key .w1 { background: var(--surface) }
+.w2, .bs-key .w2 { background: color-mix(in srgb, var(--accent) 12%, var(--surface)) }
+.w3, .bs-key .w3 { background: color-mix(in srgb, var(--accent) 26%, var(--surface)) }
+.w4, .bs-key .w4 { background: var(--accent); border-color: var(--accent) }
+.tchip.w4 { color: var(--accent-ink) }
+.tchip.w4 span { color: color-mix(in srgb, var(--accent-ink) 75%, transparent) }
+
+/* The topic popup. A centred card on large screens, a sheet from the bottom on phones. */
+html.modal-open { overflow: hidden }
+.tp { width: min(960px, calc(100% - 32px)); max-height: min(86vh, 920px); padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--bg); color: var(--fg); box-shadow: 0 24px 70px rgba(0, 0, 0, .28); overflow: hidden }
+.tp[open] { display: flex; flex-direction: column }
+.tp::backdrop { background: rgba(8, 14, 11, .5) }
+.tp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 14px; border-bottom: 1px solid var(--line); background: var(--surface) }
+.tp-titles { min-width: 0 }
+.tp-eyebrow { margin: 0; font: 500 .72rem var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--gold) }
+.tp-head h2 { margin: 2px 0 0; font: 400 1.55rem/1.2 var(--display); overflow-wrap: anywhere }
+.tp-meta { margin: 4px 0 0; font: 500 .78rem var(--mono); color: var(--muted) }
+.tp-all { all: unset; cursor: pointer; margin-top: 8px; font: 500 .84rem var(--body); color: var(--accent) }
+.tp-all:hover { text-decoration: underline }
+.tp-close { all: unset; cursor: pointer; flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; font-size: 1.5rem; line-height: 1; color: var(--muted) }
+.tp-close:hover { background: var(--raise); color: var(--fg) }
+.tp-close:focus-visible, .tp-all:focus-visible, .tp-nav:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.tp-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px }
+.tp-table { margin: 0 }
+.tp-table .fl-main { display: flex; align-items: baseline; gap: 8px }
+.tp-table .fl-desc { margin: 0 }
+.tp-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: var(--surface); font-size: .88rem }
+.tp-foot #tp-page { margin: 0 auto }
+.tp-nav { all: unset; cursor: pointer; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--fg); font: 500 .84rem var(--body); max-width: 40%; overflow-wrap: anywhere }
+.tp-nav:hover { border-color: var(--accent); color: var(--accent) }
+@media (max-width: 640px) {
+  .tp { width: 100%; max-width: 100%; max-height: 92dvh; margin: auto 0 0; border-radius: 18px 18px 0 0; border-bottom: 0 }
+  .tp-head h2 { font-size: 1.3rem }
+  .tp-body { padding: 10px }
+}
+/* A grouped row whose flow has no description shows its name after all (nothing else would say what it is). */
+.grouped .fl-main:not(:has(.fl-desc)) .fl-name { position: static; width: auto; height: auto; clip: auto; clip-path: none; white-space: normal }
+/* Topics sort: one compact dropdown (four choices do not fit as pills on a phone). */
+.tl-sort { display: inline-flex; align-items: center; gap: 8px; font-size: .86rem; color: var(--muted) }
+.tl-sort select { font: 500 .86rem var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px }
+.tl-sort select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.tp-acts { display: flex; flex-wrap: wrap; gap: 4px 16px }
+/* Group by surah heading number, and the Clear all filters button. */
+.fl-group-no { font: 500 .78rem var(--mono); color: var(--gold); margin-right: 10px }
+.f-clear { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--accent); font: 500 .86rem var(--body); white-space: nowrap }
+.f-clear::before { content: "× "; }
+.f-clear:hover { border-color: var(--accent) }
+.f-clear:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+/* Filters: the search box gets its own line; surah, grouping and clear sit on the next. */
+#flows .filters .f-tags { flex: 1 1 100% }
+.f-groupby { flex: 0 1 220px }
+/* Grouped by surah: the surah column and its sort button step aside. */
+.no-surah .fl-head [data-sort="surah"] { display: none }
+
+/* Popup actions: read aloud, open all, group by surah, see all. */
+.tp-acts { align-items: center }
+.tp-read { display: inline-flex; align-items: center; gap: 6px }
+.tp-cover[aria-pressed="true"] { color: var(--fg); font-weight: 600 }
+/* Today's topic: a card above the field on the home page */
+.today { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface) }
+.today-text { flex: 1 1 240px; min-width: 0 }
+.today-text p { margin: 0 }
+.today-eyebrow { font: 500 .72rem var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--gold) }
+.today-done { margin-left: 6px; letter-spacing: 0; text-transform: none; font-size: .8rem; color: var(--accent) }
+.today-name { font: 400 1.35rem/1.25 var(--display); color: var(--fg); overflow-wrap: anywhere }
+.today-name .cat-dot { vertical-align: 3px }
+.today-meta { font-size: .84rem; color: var(--muted) }
+.today-acts { display: flex; flex-wrap: wrap; gap: 8px }
+.today-acts button { all: unset; cursor: pointer; box-sizing: border-box; min-height: 40px; display: inline-flex; align-items: center; padding: 6px 16px; border-radius: 999px; border: 1px solid var(--line); font: 500 .9rem var(--body); color: var(--fg); white-space: nowrap }
+.today-acts button:hover { border-color: var(--accent); color: var(--accent) }
+.today-acts button.main { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600 }
+.today-acts button.main:hover { color: var(--accent-ink); filter: brightness(1.08) }
+.today-acts button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+/* The same topic put in front of the reader once a day: a small popup (a sheet from the bottom on phones) */
+@media (min-width: 641px) { .day-pop { width: min(440px, calc(100% - 32px)) } }
+.dp-body { position: relative; flex: 1 1 auto; min-height: 0; padding: 22px 22px 20px; overflow-y: auto; overscroll-behavior: contain }
+.dp-body .tp-close { position: absolute; top: 8px; right: 8px }
+.dp-body p { margin: 0 }
+.day-pop h2 { margin: 4px 44px 0 0; font: 400 1.7rem/1.2 var(--display); overflow-wrap: anywhere }
+.day-pop h2 .cat-dot { vertical-align: 4px }
+.dp-body .dp-meta { margin-top: 6px; font: 500 .78rem var(--mono); color: var(--muted) }
+.dp-body .dp-note { margin-top: 12px; font-size: .92rem; color: var(--muted) }
+.dp-acts { margin-top: 18px }
+.dp-acts button[hidden] { display: none }
+@media (max-width: 640px) {
+  .dp-body { padding: 20px 18px calc(18px + env(safe-area-inset-bottom, 0px)) }
+  .dp-acts button { flex: 1 1 auto; justify-content: center }
+}
+@keyframes qf-rise { from { opacity: 0; transform: translateY(12px) } }
+@keyframes qf-fade { from { opacity: 0 } }
+@media (prefers-reduced-motion: no-preference) {
+  .day-pop[open] { animation: qf-rise .22s cubic-bezier(.2, .8, .2, 1) }
+  .day-pop[open]::backdrop { animation: qf-fade .22s ease-out }
+}
+.tp-read[aria-pressed="true"] { color: var(--fg) }
+.tp-read:disabled { opacity: .6; cursor: progress }
+.tp-check { display: inline-flex; align-items: center; gap: 6px; font: 500 .84rem var(--body); color: var(--muted); cursor: pointer }
+.tp-check input { accent-color: var(--accent) }
+/* The popup's rows follow the popup's own width, not the screen's: below 640px of popup they take the compact
+   layout (range on the right, surah under the description). */
+.tp-table { container: tp / inline-size }
+@container tp (max-width: 640px) {
+  .tp-table .fl, .tp-table.no-surah .fl, .tp-table.hide-count .fl { grid-template-columns: 2.4rem minmax(0, 1fr) auto; padding: 10px 12px }
+  .tp-table .c-surah { grid-column: 2; grid-row: 2; font-size: .82rem }
+  .tp-table .c-rg { grid-column: 3; grid-row: 1 }
+  .tp-table .c-n { display: none }
+}
+
+/* Verse tools: pick to copy or share, star to keep. */
+.v-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .78rem; color: var(--muted) }
+.v-pick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-family: var(--mono) }
+.v-pick input { accent-color: var(--accent) }
+.v-fav { all: unset; cursor: pointer; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; font-size: 1.05rem; color: var(--gold) }
+.v-fav:hover { background: var(--soft) }
+.v-fav:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.nav-fav { all: unset; cursor: pointer; color: var(--gold); padding: 2px 4px; white-space: nowrap }
+.nav-fav-n { font: 500 .78rem var(--mono); color: var(--muted) }
+.nav-fav:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.fav-list { display: grid; gap: 16px }
+/* Bottom bars: selected verses, and reading aloud (above it when both show). --bar-b is how far they sit from the
+   bottom (more on phones, where the menu is there); --sb-h is the selected-verses bar's own height, set by the page. */
+.share-bar, .sp-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--bar-b, 12px) + env(safe-area-inset-bottom, 0px)); z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: min(720px, calc(100% - 24px)); padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--fg); box-shadow: 0 10px 30px rgba(0, 0, 0, .2); font-size: .88rem }
+.sp-bar.lift { bottom: calc(var(--bar-b, 12px) + var(--sb-h, 64px) + 8px + env(safe-area-inset-bottom, 0px)) }
+.share-bar input { flex: 1 1 220px; min-width: 0; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px }
+.share-bar button, .sp-bar button { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); font-weight: 500 }
+#sb-copy, #sb-share, #sp-pause { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+.share-bar button:focus-visible, .sp-bar button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.sb-n, .sp-now { font: 500 .8rem var(--mono); color: var(--muted) }
+.sp-now { flex: 1 }
+.qf-toast { position: fixed; left: 50%; top: 76px; transform: translateX(-50%); z-index: 70; padding: 8px 14px; border-radius: 999px; background: var(--fg); color: var(--bg); font-size: .86rem; pointer-events: none /* a note, never in the way of a click on what is under it */ }
+/* Languages on the Flows page and in the popup; the Flows search row stays in reach while scrolling. */
+.f-langs, .tp-langs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px }
+#flows > .filters:first-of-type { position: sticky; top: calc(62px + env(safe-area-inset-top, 0px)); z-index: 6; background: var(--bg); padding: 8px 0; margin-top: -8px }
+/* On phones only the search box stays in reach: the category chips and the two pickers scroll away with the page.
+   Pinned together they took more than a third of the screen, and the menu along the bottom takes its share too. */
+.f-pin { display: contents }
+@media (max-width: 760px) {
+  #flows > .filters:first-of-type { display: contents }
+  #flows > .filters:first-of-type > * { margin-bottom: 10px }
+  #flows .f-pin { display: block; position: sticky; top: calc(62px + env(safe-area-inset-top, 0px)); z-index: 6; background: var(--bg); padding: 8px 0; margin: -8px 0 2px }
+}
+/* Loading a flow's verses, favourites, a topic: a small spinner with the words. */
+.v-load { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .9rem; margin: 6px 0 }
+.v-load .qf-loader { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--gold) 22%, transparent); border-top-color: var(--gold); animation: qf-spin .8s linear infinite }
+@media (prefers-reduced-motion: reduce) { .v-load .qf-loader { animation: none } }
+/* A surah read through: each flow's verses under its name, which stays pinned while they scroll by. */
+.surah.reading .flow-table, .surah.reading .t-only { display: none }
+.ctl .goto input { width: 7.5em; font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px }
+.read { margin-top: 8px }
+.rd-acts { margin: 6px 0 14px }
+.rd-flow { padding-bottom: 6px }
+.rd-name { position: sticky; top: calc(62px + env(safe-area-inset-top, 0px)); z-index: 4; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 18px 0 8px; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--line); font: 600 1rem var(--body) }
+.rd-name a { color: var(--accent); text-decoration: none }
+.rd-name a:hover { text-decoration: underline }
+.rd-name span { font: 500 .78rem var(--mono); color: var(--muted); white-space: nowrap }
+.read .v { padding: 10px 4px; border-bottom: 1px dashed var(--line) }
+.rd-next { margin: 26px 0 8px; text-align: center; font-weight: 600 }
+.v.flash { animation: qf-flash 1.6s ease-out }
+@keyframes qf-flash { 0%, 30% { background: color-mix(in srgb, var(--gold) 26%, transparent) } 100% { background: transparent } }
+@media (prefers-reduced-motion: reduce) { .v.flash { animation: none; outline: 2px solid var(--gold) } }
+/* Which flow is a verse in (Surahs page). */
+.lookup { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; margin: 4px 0 22px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface) }
+.lk-title { flex: 1 0 100%; margin: 0; font-weight: 600 }
+.lookup > label { display: grid; gap: 4px; font-size: .82rem; color: var(--muted) }
+.lookup > label select, .lookup > label input { font: inherit; font-size: .95rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-width: 0 }
+.lookup > label select { max-width: 230px }
+.lookup > label input { width: 6.5em }
+.lookup button[type="submit"] { all: unset; cursor: pointer; padding: 7px 16px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 600 }
+.lookup button[type="submit"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.lk-out { flex: 1 0 100% }
+.lk-out:empty { display: none }
+.lk-res { margin: 4px 0 10px }
+/* Categories: each element with data-cat gets its colour as --cat / --cat-t. */
+[data-cat="faith"] { --cat: var(--c-faith); --cat-t: var(--c-faith-t) }
+[data-cat="prophets"] { --cat: var(--c-prophets); --cat-t: var(--c-prophets-t) }
+[data-cat="worship"] { --cat: var(--c-worship); --cat-t: var(--c-worship-t) }
+[data-cat="life"] { --cat: var(--c-life); --cat-t: var(--c-life-t) }
+[data-cat="hereafter"] { --cat: var(--c-hereafter); --cat-t: var(--c-hereafter-t) }
+[data-cat="warnings"] { --cat: var(--c-warnings); --cat-t: var(--c-warnings-t) }
+[data-cat="events"] { --cat: var(--c-events); --cat-t: var(--c-events-t) }
+.timeline .fl[data-cat]:not([data-cat=""]) { box-shadow: inset 3px 0 0 var(--cat) }
+.cat-dot { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--cat, var(--line)); margin-right: 7px; vertical-align: 1px }
+.cat-name { color: var(--cat); font-weight: 600 }
+.topic-list li a { display: inline-flex; align-items: baseline }
+/* The category filter: pick one or more; none picked shows everything. */
+.cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px }
+.cats:empty { display: none }
+.cats button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: .82rem; color: var(--fg); white-space: nowrap }
+.cats button small { font: 500 .72rem var(--mono); color: var(--muted); margin-left: 5px }
+.cats button:hover { border-color: var(--cat, var(--accent)) }
+.cats button[aria-pressed="true"] { background: var(--cat-t, var(--soft)); border-color: var(--cat, var(--accent)); font-weight: 600 }
+.cats button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.cats .cats-all .cat-dot { display: none }
+#flows .cats { flex: 1 0 100%; margin: 0 }
+/* Search: a heading over verse results, the matched words marked, the "search more" rows set apart. */
+#results .r-head { padding: 12px 14px 4px; font: 600 .8rem var(--body); color: var(--muted); list-style: none }
+#results mark { background: color-mix(in srgb, var(--gold) 34%, transparent); color: inherit; border-radius: 3px; padding: 0 1px }
+#results .r-more a b { color: var(--accent) }
+/* Hard words: a dotted underline, and the meaning in a small bubble on tap. */
+.gl { text-decoration: underline dotted; text-decoration-color: color-mix(in srgb, var(--gold) 85%, transparent); text-decoration-thickness: 1.5px; text-underline-offset: 3px; cursor: help; border-radius: 3px }
+.gl:hover { background: color-mix(in srgb, var(--gold) 14%, transparent) }
+.gl:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px }
+.gl-tip { position: fixed; z-index: 90; max-width: min(320px, calc(100vw - 16px)); padding: 10px 12px; border-radius: 10px; background: var(--fg); color: var(--bg); font-size: .9rem; line-height: 1.4; box-shadow: 0 10px 28px rgba(0, 0, 0, .25) }
+.gl-tip small { opacity: .75; font-size: .76rem }
+.gl-tip span { display: block; margin-top: 3px }
+.gl-tip .gl-off { all: unset; cursor: pointer; display: inline-block; margin-top: 8px; font-size: .74rem; opacity: .7; text-decoration: underline }
+.link-btn { all: unset; cursor: pointer; text-decoration: underline; color: var(--accent) }
+.link-btn:focus-visible, .gl-tip .gl-off:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+/* Quiz: one question at a time, big answers, the right one shown after answering. */
+.quiz h1 { margin-top: 22px }
+.qz-setup { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; margin: 14px 0 24px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface) }
+.qz-setup label { display: grid; gap: 4px; font-size: .82rem; color: var(--muted); flex: 1 1 260px }
+.qz-setup select { font: inherit; font-size: 1rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0 }
+.qz-setup button, .qz-next, .qz-acts button:not(.ghost), .pg-acts button:not(.ghost) { all: unset; cursor: pointer; padding: 9px 18px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 600; text-align: center }
+.qz-note { flex: 1 0 100%; margin: 0; font-size: .8rem; color: var(--muted) }
+.qz { margin: 8px 0 28px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface) }
+.qz-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 500 .8rem var(--mono); color: var(--muted) }
+.qz-dots { display: flex; gap: 5px }
+.qz-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line) }
+.qz-dots i.cur { background: var(--gold) } .qz-dots i.ok { background: var(--c-worship) } .qz-dots i.no { background: var(--c-warnings) }
+.qz-q { font: 600 1.25rem/1.35 var(--body); margin: 14px 0 12px }
+.qz-verse { margin: 0 0 14px; padding: 12px 14px; border-left: 3px solid var(--gold); background: var(--raise); border-radius: 0 10px 10px 0; font-size: 1.02rem; line-height: 1.6 }
+.qz-verse.v-ta { font-family: var(--tamil) }
+.qz-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px }
+.qz-opts button { all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); font: 500 1rem var(--body); color: var(--fg); transition: border-color .15s, background-color .15s }
+.qz-opts button:hover:not(:disabled) { border-color: var(--accent) }
+.qz-opts button:focus-visible, .qz-setup button:focus-visible, .qz-next:focus-visible, .qz-acts button:focus-visible, .pg-acts button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.qz-opts kbd { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); font: 500 .72rem var(--mono); color: var(--muted) }
+.qz-opts button.right { border-color: var(--c-worship); background: var(--c-worship-t) }
+.qz-opts button.wrong { border-color: var(--c-warnings); background: var(--c-warnings-t) }
+.qz-opts button:disabled { cursor: default }
+.qz-after { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px }
+.qz-fb { margin: 0; flex: 1 1 260px } .qz-fb.ok { color: var(--c-worship) } .qz-fb.no { color: var(--c-warnings) } .qz-fb a { margin-left: 4px }
+.qz-end { text-align: center; padding: 10px 0 }
+.qz-score { font: 400 1.1rem var(--body); margin: 0 } .qz-score b { font: 600 3rem/1 var(--display); color: var(--accent); margin-right: 6px }
+.qz-meta { color: var(--muted); font-size: .86rem }
+.qz-acts { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 16px; margin-top: 12px }
+@media (prefers-reduced-motion: reduce) { .qz-opts button { transition: none } }
+/* Progress, surah by surah. */
+.pg-title { margin-top: 30px }
+.pg-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 10px 0 14px }
+.pg-card { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface) }
+.pg-card b { display: block; font: 600 1.5rem var(--display); color: var(--accent) } .pg-card span { font-size: .82rem; color: var(--muted) }
+.pg-keep { padding: 14px 16px; border-radius: 12px; background: var(--soft); border: 1px solid var(--line); font-size: .92rem }
+.pg-keep p { margin: 0 0 10px }
+.pg-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px }
+.pg-import { cursor: pointer; text-decoration: underline; color: var(--accent) }
+.pg-import input { position: absolute; width: 1px; height: 1px; opacity: 0 }
+.pg-import:focus-within { outline: 2px solid var(--focus); outline-offset: 2px }
+.pg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 18px }
+.pg-list { list-style: none; padding: 0; margin: 8px 0 }
+.pg-list li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(60px, 1fr) auto auto; align-items: center; gap: 4px 12px; padding: 7px 2px; border-bottom: 1px solid var(--line); font-size: .9rem }
+.pg-list li.pg-none { opacity: .62 }
+.pg-name { text-decoration: none; color: var(--fg); overflow-wrap: anywhere } .pg-no { display: inline-block; min-width: 2.2em; font: 500 .76rem var(--mono); color: var(--muted) }
+.pg-bar { height: 7px; border-radius: 99px; background: var(--line); overflow: hidden } .pg-bar span { display: block; height: 100%; background: var(--accent); border-radius: inherit }
+.pg-n, .pg-q { font: 500 .76rem var(--mono); color: var(--muted); white-space: nowrap }
+.pg-all { color: var(--muted); font-size: .88rem }
+@media (max-width: 560px) { .pg-list li { grid-template-columns: minmax(0, 1fr) auto; } .pg-bar { grid-column: 1 / -1; order: 3 } .pg-q { grid-column: 2 } }
+.qz-top > span:not(.qz-dots) { white-space: nowrap }
+@media (max-width: 420px) { .qz-dots { gap: 3px } .qz-dots i { width: 7px; height: 7px } }
+.visits { font: 500 .8rem var(--mono); color: var(--muted) }
+
+/* ---------- edges (2026-11-14) ---------- */
+/* The floating bars (selected verses, reading aloud). On the page they float over its end, so the page keeps as much
+   room under itself as they take (--bars-h, measured by the page) and its last lines can always be scrolled clear of
+   them; while the cookie notice is up they sit above it (--bar-lift). */
+body { padding-bottom: var(--bars-h, 0px) }
+@media (max-width: 760px) {
+  :root { --nav-b: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)) }
+  body { padding-bottom: max(var(--bars-h, 0px), var(--nav-b)) }
+}
+.share-bar, .sp-bar { bottom: calc(var(--bar-b, 12px) + var(--bar-lift, 0px) + env(safe-area-inset-bottom, 0px)) }
+.sp-bar.lift { bottom: calc(var(--bar-b, 12px) + var(--bar-lift, 0px) + var(--sb-h, 64px) + 8px + env(safe-area-inset-bottom, 0px)) }
+/* In a popup they are rows of the popup itself, between its list and its foot, so they cover nothing. */
+.tp > .share-bar, .tp > .sp-bar { position: static; transform: none; flex: none; align-self: center; margin: 6px 0; box-shadow: none }
+.tp > .sp-bar { order: 1 } .tp > .share-bar { order: 2 } .tp > .tp-foot { order: 3 }
+.fav-pop { padding-bottom: env(safe-area-inset-bottom, 0px) }
+/* A line being read aloud comes to rest clear of the top bar and of whatever floats at the bottom. */
+[data-speak] { scroll-margin-top: 120px; scroll-margin-bottom: calc(max(var(--bars-h, 0px), var(--nav-b, 0px)) + 16px) }
+.tp [data-speak] { scroll-margin: 16px 0 }
+
+/* Things that could not be loaded say so where the reader is looking, with a way to try again. */
+.bub-note { position: absolute; inset: 0; margin: 0; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px; text-align: center; color: var(--muted) }
+.results .r-none { display: grid; gap: 2px; padding: 9px 12px }
+.empty .ghost, .v-err .ghost, .bub-note .ghost { margin-left: 6px; font: inherit; font-style: normal; font-size: .86rem; color: var(--fg) }
+.fav-bad { margin: 0 }
+
+/* Quiz on a narrow phone: the dots take their own line, an answer never forces the page sideways, and the answer's
+   feedback stops clear of the bottom menu. */
+.qz { scroll-margin-top: calc(74px + env(safe-area-inset-top, 0px)) }
+.qz-opts { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)) }
+.qz-opts button { min-width: 0; overflow-wrap: anywhere }
+.qz-after { scroll-margin-bottom: calc(max(var(--bars-h, 0px), var(--nav-b, 0px)) + 16px) }
+@media (max-width: 380px) {
+  .qz { padding: 14px }
+  .qz-top { flex-wrap: wrap }
+  .qz-dots { order: 3; flex: 1 0 100%; justify-content: space-between }
+}
+
+/* Small gold text. The gold of the light theme is a decoration colour (about 3:1 on the page); small text in it gets a
+   deeper gold that reads at 4.8:1 or better on every light surface. The dark theme's gold already does. */
+:root { --gold-ink: #806419 }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --gold-ink: #d6b35c } }
+:root[data-theme="dark"] { --gold-ink: #d6b35c }
+.eyebrow, .sc-no, .bs-no, .tp-eyebrow, .fl-group-no, .today-eyebrow { color: var(--gold-ink) }
+/* The counts on the two deeper chip shades: the muted grey falls under 4.5:1 there. */
+.tchip.w2 span, .tchip.w3 span { color: color-mix(in srgb, var(--fg) 85%, transparent) }
+
+/* The tour: a ? button in the header, and a popup with the video (16:9 on desktop, 9:16 on phones). */
+.nav-help { all: unset; cursor: pointer; flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); color: var(--accent); font: 600 .92rem var(--body) }
+.nav-help:hover { border-color: var(--accent) }
+.nav-help:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.tour-video { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 12px; overflow: hidden }
+.tour-video.tall { aspect-ratio: 9 / 16; width: min(100%, calc(68vh * 9 / 16)); margin: 0 auto }
+.tour-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0 }
+.tour-play { all: unset; cursor: pointer; position: absolute; inset: 0; display: grid; place-items: center }
+.tour-play img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover }
+.tour-play span { position: relative; width: 68px; height: 48px; display: grid; place-items: center; border-radius: 12px; background: #e00; color: #fff; font-size: 1.4rem }
+.tour-play:focus-visible span { outline: 3px solid #fff; outline-offset: 2px }
+.tour-note { margin: 10px 2px 0; font-size: .84rem; color: var(--muted) }
+
+/* The verification notice: a red strip at the top of every page while the flows are being checked. */
+.verify-banner { margin: 14px 0 0; border-radius: 10px; padding: 10px 16px; background: #b42318; color: #fff; text-align: center; font: 500 .9rem/1.45 var(--body) }
+.verify-banner a { color: #fff; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere }
+.verify-banner a:focus-visible { outline: 2px solid #fff; outline-offset: 2px }
+
+/* Share: one small popup for a topic, a flow or a surah. It holds the link and a message ready to send, which the
+   reader may change first. */
+@media (min-width: 641px) { .share-pop { width: min(560px, calc(100% - 32px)) } }
+.share-pop { padding-bottom: env(safe-area-inset-bottom, 0px) }
+.sh-body { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 18px }
+.sh-row { display: flex; gap: 8px; align-items: center }
+.sh-row input { flex: 1; min-width: 0; box-sizing: border-box; font: 500 .8rem var(--mono); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px }
+.sh-row button { all: unset; cursor: pointer; box-sizing: border-box; min-height: 36px; display: inline-flex; align-items: center; padding: 4px 14px; border-radius: 999px; border: 1px solid var(--line); font: 500 .86rem var(--body); color: var(--fg); white-space: nowrap }
+.sh-row button:hover { border-color: var(--accent); color: var(--accent) }
+.sh-row button:focus-visible, .sh-row input:focus-visible, .sh-body textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }
+.sh-body textarea { box-sizing: border-box; width: 100%; min-height: 190px; max-height: 42vh; resize: vertical; font: 400 .9rem/1.5 var(--body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px }
+.sh-note { margin: 0; font-size: .84rem; color: var(--muted) }
+.share-pop.busy .sh-acts button { opacity: .6; cursor: progress }
+.tp-share, [data-share-page] { display: inline-flex; align-items: center; gap: 6px }
+.v-share { all: unset; display: inline-flex; align-items: center; gap: 6px; color: var(--accent); cursor: pointer; font-weight: 500 }
+.v-share:hover { text-decoration: underline }
+.v-share:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px }
+.ctl .ghost + .ghost { margin-left: 0 }
+@media (max-width: 640px) {
+  .sh-body textarea, .sh-row input { font-size: 16px } /* smaller type makes a phone zoom in on the box */
+  .sh-acts button { flex: 1 1 auto; justify-content: center }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .share-pop[open] { animation: qf-rise .22s cubic-bezier(.2, .8, .2, 1) }
+  .share-pop[open]::backdrop { animation: qf-fade .22s ease-out }
+}
+
+/* ---------- the three books: Quran, Sahih al-Bukhari, Sahih Muslim ----------
+   One accent per book, always beside the book's name (never the only sign). */
+:root { --bk-quran: #0e5a43; --bk-bukhari: #8a4b0f; --bk-muslim: #24578f }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bk-quran: #7fc4a4; --bk-bukhari: #e0a75a; --bk-muslim: #84b2e6 } }
+:root[data-theme="dark"] { --bk-quran: #7fc4a4; --bk-bukhari: #e0a75a; --bk-muslim: #84b2e6 }
+[data-book="quran"] { --bk: var(--bk-quran) } [data-book="bukhari"] { --bk: var(--bk-bukhari) } [data-book="muslim"] { --bk: var(--bk-muslim) }
+.bk-dot { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--bk, var(--accent)); margin-right: 7px; vertical-align: 1px }
+/* A hadith book's Arabic is ordinary script, set in a Naskh face (the Quran keeps its own). */
+body[data-src] { --arabic: "Amiri", "Noto Naskh Arabic", serif }
+body[data-src] .v-ar { font-size: 1.32rem; line-height: 2.05 }
+@media (max-width: 560px) { body[data-src] .v-ar { font-size: 1.18rem; line-height: 1.95 } }
+.v-none { color: var(--muted); font-style: italic; margin: 6px 0 }
+.v-none sup { font: 500 .7rem var(--mono); font-style: normal; margin-right: 4px }
+
+/* The books bar: above the header, on every page. Plain links (it leaves for another book), not a filter. */
+.books { background: var(--raise); border-bottom: 1px solid var(--line); font: 500 .9rem/1 var(--body) }
+.books-in { max-width: 1180px; margin: 0 auto; display: flex; gap: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.books a { display: flex; align-items: center; height: 36px; color: var(--muted); text-decoration: none; white-space: nowrap; border-bottom: 3px solid transparent; padding-top: 3px }
+.books a:hover { color: var(--fg); text-decoration: underline; text-underline-offset: 4px }
+.books a[aria-current="page"] { color: var(--fg); font-weight: 600; border-bottom-color: var(--bk) }
+.books .bk-s { display: none }
+@media (max-width: 767px) {
+  .books-in { gap: 0 }
+  .books a { flex: 1 1 0; justify-content: center; height: 44px; font-size: .88rem }
+  .books .bk-s { display: inline } .books .bk-l { display: none }
+}
+
+/* "In all three books" on the Topics page */
+.common-f { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 10px 0 4px }
+.common-f button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; cursor: pointer; font: 500 .88rem var(--body) }
+.common-f button small { font: 500 .75rem var(--mono); color: var(--muted) }
+.common-f button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink) }
+.common-f button[aria-pressed="true"] small { color: inherit; opacity: .85 }
+.common-note { color: var(--muted); font-size: .85rem }
+
+/* A topic in the other books: the jump strip in the popup's head, then one block per other book. */
+.tp-books { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px }
+.tp-books a { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; color: var(--fg); text-decoration: none; font: 500 .85rem var(--body); background: var(--bg) }
+.tp-books a small { font: 500 .75rem var(--mono); color: var(--muted); margin-left: 6px }
+.tp-books a[aria-current="true"] { border-color: var(--bk); box-shadow: inset 0 0 0 1px var(--bk) }
+.others { margin-top: 18px }
+.others:empty { display: none }
+.others-h { font: 400 1.15rem/1.3 var(--display); margin: 0 0 10px }
+.ot-books { display: grid; gap: 14px }
+.others-page .ot-books { grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); align-items: start }
+.ot-book { border: 1px solid var(--line); border-top: 3px solid var(--bk); border-radius: var(--r); background: var(--surface); padding: 12px 14px; scroll-margin-top: 12px }
+.ot-book h4 { margin: 0 0 8px; font: 600 1rem/1.3 var(--body); display: flex; align-items: center; flex-wrap: wrap; gap: 0 8px }
+.ot-book h4 small { font: 500 .78rem var(--mono); color: var(--muted) }
+.ot-list { list-style: none; margin: 0; padding: 0 }
+.ot { border-top: 1px solid var(--line); padding: 8px 0 }
+.ot:first-child { border-top: 0; padding-top: 0 }
+.ot-open { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; width: 100%; text-align: left; background: none; border: 0; padding: 4px 0; cursor: pointer }
+.ot-ref { font: 500 .85rem var(--mono); color: var(--bk) }
+.ot-unit { color: var(--muted); font-size: .85rem }
+.ot-open::after { content: "+"; margin-left: auto; color: var(--muted); font: 500 1rem var(--mono) }
+.ot.open .ot-open::after { content: "−" }
+.ot-desc { margin: 2px 0 0; font-size: .93rem }
+.ot-text { margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--bk) }
+.ot-text p { margin: 0 0 8px }
+.ot-text sup { font: 500 .7rem var(--mono); color: var(--muted); margin-right: 3px }
+.ot-ar { direction: rtl; text-align: right; font: 400 1.3rem/2 var(--arabic) }
+.ot-book[data-book="quran"] .ot-ar { font-family: "Amiri Quran", "Amiri", serif; font-size: 1.45rem }
+.ot-book:not([data-book="quran"]) .ot-ar { font-family: "Amiri", "Noto Naskh Arabic", serif }
+.ot-ta { font-family: var(--tamil); font-size: .95rem }
+.ot-all { padding-top: 6px }
+.ot-more { margin: 10px 0 0; font-size: .9rem }
+.ot-none { color: var(--muted); margin: 0; font-size: .92rem }
+
+/* Side by side (wide screens): all three books at once, one column each, in the books' order. */
+.tp-pview, .page-pview { margin-top: 10px }
+.page-pview { display: none }
+.side-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start }
+.side-cols .ot-book { padding: 0 12px 12px }
+.side-cols .ot-book h4 { position: sticky; top: -14px; z-index: 1; margin: 0 -12px 8px; padding: 12px 12px 8px; background: var(--surface); border-bottom: 1px solid var(--line); border-radius: var(--r) var(--r) 0 0 }
+.side-cols .ot-book.is-here { box-shadow: 0 0 0 1px var(--bk) }
+.side-cols .ot-book.is-here h4::after { content: "this book"; margin-left: auto; font: 500 .7rem var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .06em }
+.tp.side-mode { width: min(1480px, calc(100% - 32px)) }
+.tp.side-mode .tp-table, .tp.side-mode #tp-others, .tp.side-mode #tp-books, .tp.side-mode #tp-read, .tp.side-mode #tp-openall, .tp.side-mode label:has(#tp-group) { display: none !important }
+@media (min-width: 1100px) {
+  .page-pview { display: inline-flex; margin: 0 0 12px }
+  body.side-mode .topic .flow-table, body.side-mode .topic .others-page, body.side-mode .topic [data-expand-all],
+  body.side-mode .topic .ctl label:has([data-desc]), body.side-mode .topic .ctl label:has([data-count]) { display: none !important }
+  .side-page { position: relative; left: 50%; transform: translateX(-50%); width: min(1440px, calc(100vw - 48px)) }
+  .side-page .side-cols .ot-book h4 { top: calc(var(--nav-h, 62px) + 1px) }
+}
+@media (max-width: 1099px) { .tp-pview { display: none !important } }
